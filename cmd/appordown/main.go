@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/fabiant7t/appordown/internal/config"
+	apphttp "github.com/fabiant7t/appordown/internal/http"
 	"github.com/fabiant7t/appordown/internal/mail"
 )
 
@@ -55,6 +56,21 @@ func main() {
 		os.Exit(1)
 	}
 	_ = mailService
+
+	httpOpts := []apphttp.Option{}
+	if cfg.HTTPServer.BasicAuthUsername != "" || cfg.HTTPServer.BasicAuthPassword != "" {
+		httpOpts = append(httpOpts, apphttp.WithBasicAuth(
+			cfg.HTTPServer.BasicAuthUsername,
+			cfg.HTTPServer.BasicAuthPassword,
+		))
+	}
+
+	httpServer, err := apphttp.New(cfg.HTTPServer.Address, cfg.HTTPServer.Port, httpOpts...)
+	if err != nil {
+		slog.Error("failed to initialize http server", "error", err)
+		os.Exit(1)
+	}
+	_ = httpServer
 
 }
 
