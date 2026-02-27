@@ -132,22 +132,21 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleSt
 	nextState.LastCycleStartedAt = cycleStartedAt
 	nextState.LastCycleAt = cycleCompletedAt
 	r.stateStore.Set(parsedSpec.HTTP.Name, nextState)
+	took := cycleCompletedAt.Sub(cycleStartedAt)
 
 	if checkErr == nil {
 		slog.Debug("spec_ran",
 			"name", parsedSpec.HTTP.Name,
-			"source", parsedSpec.SourcePath,
 			"result", "success",
-			"cycle_started_at", cycleStartedAt,
-			"cycle_completed_at", cycleCompletedAt,
+			"source", parsedSpec.SourcePath,
+			"took", took.String(),
 		)
 	} else {
 		slog.Debug("spec_ran",
 			"name", parsedSpec.HTTP.Name,
-			"source", parsedSpec.SourcePath,
 			"result", "failure",
-			"cycle_started_at", cycleStartedAt,
-			"cycle_completed_at", cycleCompletedAt,
+			"source", parsedSpec.SourcePath,
+			"took", took.String(),
 			"error", checkErr,
 		)
 	}

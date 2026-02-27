@@ -56,34 +56,106 @@ Configuration is read with precedence: `CLI > ENV > defaults`.
 
 ## Spec Format
 
-Each YAML document represents one spec.
+Each YAML document is one HTTP check spec.  
+One file may contain multiple spec documents separated by `---`.
+
+### Full Example (All Fields)
 
 ```yaml
 ---
 version: 1
 http:
-  name: healthz
+  name: app-health
   disabled: false
   method: GET
   follow_redirects: true
-  url: http://example.com/healthz
+  url: https://example.com/healthz?source=eddie
+  args:
+    env: prod
+    region: eu-central-1
   timeout: 5s
   expect:
     code: 200
+    header:
+      Content-Type: application/json
+      Cache-Control: no-store
     body:
-      contains: "OK"
+      exact: '{"status":"ok"}'
+      contains: '"status":"ok"'
   cycles:
-    failure: 4
-    success: 1
+    failure: 3
+    success: 2
   on_failure: |
-    echo "failed"
+    echo "[FAIL] app-health" >&2
   on_success: |
-    echo "ok"
+    echo "[RECOVERY] app-health"
 ```
 
-`disabled` defaults to `false` when omitted.
+### Minimal Example (Defaults)
 
-`cycles.failure` and `cycles.success` both default to `1` when omitted.
+```yaml
+---
+version: 1
+http:
+  name: docs-home
+  url: https://example.com/
+```
+
+### Multi-Document File Example
+
+```yaml
+---
+version: 1
+http:
+  name: api-health
+  method: GET
+  url: https://api.example.com/healthz
+  expect:
+    code: 200
+---
+version: 1
+http:
+  name: api-robots
+  disabled: true
+  method: GET
+  url: https://api.example.com/robots.txt
+```
+
+### Field Reference
+
+- `version`  
+  Spec version field. Current examples use `1`.
+- `http.name` (required)  
+  Unique ID for the check (`http.name` must be unique across all parsed HTTP specs).
+- `http.disabled`  
+  Defaults to `false`; when `true`, the spec is parsed but not executed.
+- `http.method`  
+  HTTP method. Defaults to `GET` when empty.
+- `http.follow_redirects`  
+  Controls redirect behavior. Defaults to `false`.
+- `http.url` (required)  
+  Must contain scheme and host (for example `https://example.com/path`).
+- `http.args`  
+  Optional query parameters map. Keys overwrite same-name query params in `url`.
+- `http.timeout`  
+  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+- `http.expect.code`  
+  Optional expected HTTP status code.
+- `http.expect.header`  
+  Optional map of response headers that must match exactly.
+- `http.expect.body.exact`  
+  Optional exact body match.
+- `http.expect.body.contains`  
+  Optional substring check in response body.
+  If both `exact` and `contains` are set, both checks must pass.
+- `http.cycles.failure`  
+  Consecutive failure threshold before entering failing state. Defaults to `1` when omitted/`<=0`.
+- `http.cycles.success`  
+  Consecutive success threshold to recover from failing state. Defaults to `1` when omitted/`<=0`.
+- `http.on_failure`  
+  Optional shell script executed asynchronously when the spec transitions to failing.
+- `http.on_success`  
+  Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 
 ## Monitoring Semantics
 

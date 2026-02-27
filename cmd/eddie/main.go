@@ -13,6 +13,7 @@ import (
 
 	"github.com/fabiant7t/eddie/internal/config"
 	apphttp "github.com/fabiant7t/eddie/internal/http"
+	applogging "github.com/fabiant7t/eddie/internal/logging"
 	"github.com/fabiant7t/eddie/internal/mail"
 	"github.com/fabiant7t/eddie/internal/monitor"
 	"github.com/fabiant7t/eddie/internal/spec"
@@ -40,9 +41,7 @@ func main() {
 		slog.Error("failed to parse log level", "error", err)
 		os.Exit(1)
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: logLevel,
-	})))
+	slog.SetDefault(applogging.NewLogger(logLevel, os.Stderr))
 
 	// App information
 	slog.Info("build",
@@ -128,7 +127,7 @@ func main() {
 		slog.Error("failed to initialize http server", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("service running", "message", "press Ctrl+C to stop")
+	slog.Info("service running", "msg", "press Ctrl+C to stop")
 
 	serverErrCh := make(chan error, 1)
 	go func() {
