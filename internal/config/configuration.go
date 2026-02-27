@@ -16,6 +16,7 @@ const (
 	envMailPort          = "APPORDOWN_MAIL_PORT"
 	envMailUsername      = "APPORDOWN_MAIL_USERNAME"
 	envMailPassword      = "APPORDOWN_MAIL_PASSWORD"
+	envMailSender        = "APPORDOWN_MAIL_SENDER"
 	envMailNoTLS         = "APPORDOWN_MAIL_NO_TLS"
 )
 
@@ -31,6 +32,7 @@ type MailserverConfiguration struct {
 	Port     int
 	Username string
 	Password string
+	Sender   string
 	NoTLS    bool
 }
 
@@ -68,6 +70,9 @@ func Load(args []string) (Configuration, error) {
 	if raw := os.Getenv(envMailPassword); raw != "" {
 		cfg.Mailserver.Password = raw
 	}
+	if raw := os.Getenv(envMailSender); raw != "" {
+		cfg.Mailserver.Sender = raw
+	}
 	if raw := os.Getenv(envMailNoTLS); raw != "" {
 		noTLS, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -83,6 +88,7 @@ func Load(args []string) (Configuration, error) {
 	fs.IntVar(&cfg.Mailserver.Port, "mail-port", cfg.Mailserver.Port, "mail server port")
 	fs.StringVar(&cfg.Mailserver.Username, "mail-username", cfg.Mailserver.Username, "mail server username")
 	fs.StringVar(&cfg.Mailserver.Password, "mail-password", cfg.Mailserver.Password, "mail server password")
+	fs.StringVar(&cfg.Mailserver.Sender, "mail-sender", cfg.Mailserver.Sender, "mail sender address")
 	fs.BoolVar(&cfg.Mailserver.NoTLS, "mail-no-tls", cfg.Mailserver.NoTLS, "disable TLS for mail server")
 	if err := fs.Parse(args); err != nil {
 		return Configuration{}, err

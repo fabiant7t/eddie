@@ -11,6 +11,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv(envMailPort, "")
 	t.Setenv(envMailUsername, "")
 	t.Setenv(envMailPassword, "")
+	t.Setenv(envMailSender, "")
 	t.Setenv(envMailNoTLS, "")
 
 	cfg, err := Load(nil)
@@ -32,6 +33,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv(envMailPort, "2525")
 	t.Setenv(envMailUsername, "alice")
 	t.Setenv(envMailPassword, "secret")
+	t.Setenv(envMailSender, "noreply@example.com")
 	t.Setenv(envMailNoTLS, "true")
 
 	cfg, err := Load(nil)
@@ -54,6 +56,9 @@ func TestLoadFromEnv(t *testing.T) {
 	if cfg.Mailserver.Password != "secret" {
 		t.Fatalf("Mailserver.Password = %q, want %q", cfg.Mailserver.Password, "secret")
 	}
+	if cfg.Mailserver.Sender != "noreply@example.com" {
+		t.Fatalf("Mailserver.Sender = %q, want %q", cfg.Mailserver.Sender, "noreply@example.com")
+	}
 	if cfg.Mailserver.NoTLS != true {
 		t.Fatalf("Mailserver.NoTLS = %v, want %v", cfg.Mailserver.NoTLS, true)
 	}
@@ -65,6 +70,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailPort, "2525")
 	t.Setenv(envMailUsername, "alice")
 	t.Setenv(envMailPassword, "secret")
+	t.Setenv(envMailSender, "noreply@example.com")
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
@@ -73,6 +79,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 		"--mail-port=1025",
 		"--mail-username=bob",
 		"--mail-password=override",
+		"--mail-sender=alerts@example.com",
 		"--mail-no-tls=true",
 	})
 	if err != nil {
@@ -93,6 +100,9 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	}
 	if cfg.Mailserver.Password != "override" {
 		t.Fatalf("Mailserver.Password = %q, want %q", cfg.Mailserver.Password, "override")
+	}
+	if cfg.Mailserver.Sender != "alerts@example.com" {
+		t.Fatalf("Mailserver.Sender = %q, want %q", cfg.Mailserver.Sender, "alerts@example.com")
 	}
 	if cfg.Mailserver.NoTLS != true {
 		t.Fatalf("Mailserver.NoTLS = %v, want %v", cfg.Mailserver.NoTLS, true)
