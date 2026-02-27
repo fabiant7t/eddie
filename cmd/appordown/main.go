@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	nethttp "net/http"
 	"os"
@@ -70,21 +71,7 @@ func main() {
 		"no_tls", cfg.Mailserver.NoTLS,
 	)
 
-	parsedSpecs, err := spec.Parse(cfg.SpecPath)
-	if err != nil {
-		slog.Error("failed to parse specs", "spec_path", cfg.SpecPath, "error", err)
-		os.Exit(1)
-	}
-	for _, parsedSpec := range parsedSpecs {
-		if parsedSpec.IsActive() {
-			slog.Debug("spec_parsed",
-				"name", parsedSpec.HTTP.Name,
-				"source", parsedSpec.SourcePath,
-			)
-		}
-	}
-
-	//Mail service
+	// Mail service
 	opts := []mail.Option{
 		mail.WithPort(cfg.Mailserver.Port),
 	}
@@ -105,7 +92,21 @@ func main() {
 		slog.Error("failed to initialize mail service", "error", err)
 		os.Exit(1)
 	}
-	_ = mailService
+
+	parsedSpecs, err := spec.Parse(cfg.SpecPath)
+	if err != nil {
+		slog.Error("failed to parse specs", "spec_path", cfg.SpecPath, "error", err)
+		notifySpecParseFailure(cfg, mailService, err)
+		os.Exit(1)
+	}
+	for _, parsedSpec := range parsedSpecs {
+		if parsedSpec.IsActive() {
+			slog.Debug("spec_parsed",
+				"name", parsedSpec.HTTP.Name,
+				"source", parsedSpec.SourcePath,
+			)
+		}
+	}
 
 	// HTTP server
 	httpOpts := []apphttp.Option{}
@@ -152,4 +153,28 @@ func redact(value string) string {
 		return ""
 	}
 	return "***"
+}
+
+func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service, parseErr error) {
+	if len(cfg.Mailserver.Receivers) == 0 {
+		slog.Warn("cannot send parse failure email: no mail receivers configured")
+		return
+	}
+
+	subjectLine := "Subject: appordown spec parse failure"
+	body := fmt.Sprintf(
+		"%s\r\n\r\nfailed to parse specs from %q\r\nerror: %v\r\n",
+		subjectLine,
+		cfg.SpecPath,
+		parseErr,
+	)
+
+	sendCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for _, recipient := range cfg.Mailserver.Receivers {
+		if err := mailService.Send(sendCtx, recipient, []byte(body)); err != nil {
+			slog.Error("failed to send parse failure email", "recipient", recipient, "error", err)
+		}
+	}
 }
