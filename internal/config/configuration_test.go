@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -31,7 +32,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
 	}
-	wantConfigPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir, defaultConfigPattern)
+	wantConfigPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir)
 	if cfg.ConfigurationPath != wantConfigPath {
 		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, wantConfigPath)
 	}
@@ -51,7 +52,7 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-env")
-	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
+	t.Setenv(envConfigPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -73,8 +74,8 @@ func TestLoadFromEnv(t *testing.T) {
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
 	}
-	if cfg.ConfigurationPath != "/etc/appordown/config.d/*.yaml" {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/etc/appordown/config.d/*.yaml")
+	if cfg.ConfigurationPath != "/etc/appordown/config.d" {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/etc/appordown/config.d")
 	}
 	if cfg.HTTPServer.Address != "127.0.0.1" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "127.0.0.1")
@@ -114,7 +115,7 @@ func TestLoadFromEnv(t *testing.T) {
 
 func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-cli")
-	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
+	t.Setenv(envConfigPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -129,7 +130,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
-		"--config-path=/opt/appordown/config.d/*.yaml",
+		"--config-path=/opt/appordown/config.d",
 		"--cycle-interval=60s",
 		"--http-address=0.0.0.0",
 		"--http-port=8088",
@@ -151,8 +152,8 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
 	}
-	if cfg.ConfigurationPath != "/opt/appordown/config.d/*.yaml" {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/opt/appordown/config.d/*.yaml")
+	if cfg.ConfigurationPath != "/opt/appordown/config.d" {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/opt/appordown/config.d")
 	}
 	if cfg.HTTPServer.Address != "0.0.0.0" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "0.0.0.0")
@@ -205,5 +206,80 @@ func TestLoadFormatEquivalence(t *testing.T) {
 
 	if cfgA.CycleInterval != cfgB.CycleInterval {
 		t.Fatalf("60s parsed as %v, 1m parsed as %v; want equal", cfgA.CycleInterval, cfgB.CycleInterval)
+	}
+}
+
+func TestLoadConfigPathExpandsHome(t *testing.T) {
+	t.Setenv("HOME", "/tmp/appordown-home")
+	t.Setenv(envConfigPath, "~/config.d")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	want := filepath.Join("/tmp/appordown-home", "config.d")
+	if cfg.ConfigurationPath != want {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, want)
+	}
+}
+
+func TestLoadConfigPathResolvesRelative(t *testing.T) {
+	t.Setenv(envConfigPath, "./config.d")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	want, err := filepath.Abs("./config.d")
+	if err != nil {
+		t.Fatalf("filepath.Abs() error = %v", err)
+	}
+	if cfg.ConfigurationPath != filepath.Clean(want) {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, filepath.Clean(want))
+	}
+}
+
+func TestLoadConfigPathRejectsGlob(t *testing.T) {
+	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
+
+	_, err := Load(nil)
+	if err == nil {
+		t.Fatalf("Load() error = nil, want error")
+	}
+}
+
+func TestNormalizeConfigurationPathRejectsEmpty(t *testing.T) {
+	_, err := normalizeConfigurationPath("   ")
+	if err == nil {
+		t.Fatalf("normalizeConfigurationPath() error = nil, want error")
+	}
+}
+
+func TestNormalizeConfigurationPathRejectsUnsupportedHomeExpansion(t *testing.T) {
+	_, err := normalizeConfigurationPath("~other/config.d")
+	if err == nil {
+		t.Fatalf("normalizeConfigurationPath() error = nil, want error")
+	}
+}
+
+func TestNormalizeConfigurationPathFromDefaultIsAbsolute(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-abs")
+
+	path, err := resolveDefaultConfigurationPath()
+	if err != nil {
+		t.Fatalf("resolveDefaultConfigurationPath() error = %v", err)
+	}
+
+	normalized, err := normalizeConfigurationPath(path)
+	if err != nil {
+		t.Fatalf("normalizeConfigurationPath() error = %v", err)
+	}
+	if !filepath.IsAbs(normalized) {
+		t.Fatalf("normalized path = %q, want absolute", normalized)
+	}
+	if _, err := os.Stat(filepath.Dir(normalized)); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("unexpected stat error = %v", err)
 	}
 }
