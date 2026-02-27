@@ -195,10 +195,11 @@ func validateSpecNames(specs []Spec) error {
 			return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
 		}
 
-		if firstSource, ok := seen[name]; ok {
-			return fmt.Errorf("duplicate spec name %q found in %q and %q", name, firstSource, sp.SourcePath)
+		identity := "http:" + name
+		if firstSource, ok := seen[identity]; ok {
+			return fmt.Errorf("duplicate http.name %q found in %q and %q", name, firstSource, sp.SourcePath)
 		}
-		seen[name] = sp.SourcePath
+		seen[identity] = sp.SourcePath
 	}
 
 	return nil

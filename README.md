@@ -80,3 +80,9 @@ http:
 ```
 
 `disabled` defaults to `false` when omitted.
+
+### Spec Identity Rules
+
+- `http.name` is required and must not be empty.
+- `http.name` must be unique across all parsed HTTP specs.
+- Uniqueness is scoped by check type (for future types): `http.name` and `foo.name` may share the same value.
