@@ -28,13 +28,13 @@ type Option func(*Server) error
 // StatusSnapshotFunc returns the latest status information for all specs.
 type StatusSnapshotFunc func() StatusSnapshot
 
-// StatusSnapshot is the data rendered by /status.
+// StatusSnapshot is the data rendered by /.
 type StatusSnapshot struct {
 	GeneratedAt time.Time
 	Specs       []SpecStatus
 }
 
-// SpecStatus is one spec row rendered by /status.
+// SpecStatus is one spec row rendered by /.
 type SpecStatus struct {
 	Name                 string
 	SourcePath           string
@@ -90,10 +90,9 @@ func New(address string, port int, opts ...Option) (*Server, error) {
 	}
 
 	mux := nethttp.NewServeMux()
-	mux.HandleFunc("/", server.rootHandler)
+	mux.HandleFunc("/", server.statusHandler)
 	mux.HandleFunc("/healthz", server.healthzHandler)
-	mux.HandleFunc("/status", server.statusHandler)
-	mux.HandleFunc("/status/events", server.statusEventsHandler)
+	mux.HandleFunc("/events", server.statusEventsHandler)
 
 	server.httpServer = &nethttp.Server{
 		Addr:    net.JoinHostPort(server.address, strconv.Itoa(server.port)),
@@ -118,7 +117,7 @@ func WithBasicAuth(username, password string) Option {
 	}
 }
 
-// WithAppVersion configures the app version returned by the root route.
+// WithAppVersion configures the app version returned by healthz.
 func WithAppVersion(appVersion string) Option {
 	return func(s *Server) error {
 		if appVersion == "" {
@@ -129,7 +128,7 @@ func WithAppVersion(appVersion string) Option {
 	}
 }
 
-// WithStatusSnapshot configures the status data provider used by /status.
+// WithStatusSnapshot configures the status data provider used by /.
 func WithStatusSnapshot(snapshotFn StatusSnapshotFunc) Option {
 	return func(s *Server) error {
 		if snapshotFn == nil {
@@ -155,20 +154,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
-func (s *Server) rootHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if r.URL.Path != "/" {
-		nethttp.NotFound(w, r)
-		return
-	}
-
-	if !s.requireBasicAuth(w, r) {
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte(fmt.Sprintf("eddie %s", s.appVersion)))
-}
-
 func (s *Server) healthzHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if r.URL.Path != "/healthz" {
 		nethttp.NotFound(w, r)
@@ -178,12 +163,13 @@ func (s *Server) healthzHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	w.Header().Set("Content-Type", "application/health+json")
 	w.WriteHeader(nethttp.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status": "pass",
+		"status":  "pass",
+		"version": s.appVersion,
 	})
 }
 
 func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if r.URL.Path != "/status" {
+	if r.URL.Path != "/" {
 		nethttp.NotFound(w, r)
 		return
 	}
@@ -209,15 +195,15 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
   <title>eddie status</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f8f9fb;
-      --panel: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-      --border: #e5e7eb;
-      --healthy: #065f46;
-      --failing: #991b1b;
-      --unknown: #374151;
+      color-scheme: dark;
+      --bg: #1a1b26;
+      --panel: #16161e;
+      --text: #c0caf5;
+      --muted: #565f89;
+      --border: #292e42;
+      --healthy: #9ece6a;
+      --failing: #f7768e;
+      --unknown: #e0af68;
     }
     * { box-sizing: border-box; }
     body {
@@ -297,7 +283,7 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       text-overflow: ellipsis;
     }
     tbody tr:last-child td { border-bottom: 0; }
-    tbody tr:hover td { background: #fafafa; }
+    tbody tr:hover td { background: #1f2335; }
     code {
       font: 0.74rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       color: var(--muted);
@@ -436,7 +422,7 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
         return;
       }
 
-      const stream = new EventSource("/status/events");
+      const stream = new EventSource("/events");
       stream.addEventListener("snapshot", (event) => {
         try {
           render(JSON.parse(event.data));
@@ -460,7 +446,7 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (s *Server) statusEventsHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
-	if r.URL.Path != "/status/events" {
+	if r.URL.Path != "/events" {
 		nethttp.NotFound(w, r)
 		return
 	}

@@ -6,9 +6,9 @@
 - Parses one or more HTTP check specs from YAML files.
 - Runs active specs in monitoring cycles (in parallel).
 - Starts an HTTP server with:
-  - `/` returning `eddie <version>` (optionally basic-auth protected)
-  - `/healthz` returning `application/health+json`
-  - `/status` returning human-readable current spec states and last cycle started/completed times (basic-auth protected when configured)
+  - `/` returning the status page (optionally basic-auth protected)
+  - `/events` returning SSE snapshots for live status updates (basic-auth protected when configured)
+  - `/healthz` returning `application/health+json` including status and app version
 
 ## Build and Run
 

@@ -72,7 +72,12 @@ func TestNewValidation(t *testing.T) {
 }
 
 func TestRootRouteWithoutBasicAuth(t *testing.T) {
-	server, err := New("0.0.0.0", 8080, WithAppVersion("1.2.3"))
+	server, err := New("0.0.0.0", 8080, WithStatusSnapshot(func() StatusSnapshot {
+		return StatusSnapshot{
+			GeneratedAt: time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC),
+			Specs:       []SpecStatus{{Name: "api-health", SourcePath: "/vol/eddie/spec.d/api.yaml"}},
+		}
+	}))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -84,13 +89,25 @@ func TestRootRouteWithoutBasicAuth(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if got := rec.Body.String(); got != "eddie 1.2.3" {
-		t.Fatalf("body = %q, want %q", got, "eddie 1.2.3")
+	if got := rec.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("content-type = %q, want %q", got, "text/html; charset=utf-8")
+	}
+	if !strings.Contains(rec.Body.String(), "<!doctype html>") {
+		t.Fatalf("body is not status html: %q", rec.Body.String())
 	}
 }
 
 func TestRootRouteWithBasicAuth(t *testing.T) {
-	server, err := New("0.0.0.0", 8080, WithAppVersion("1.2.3"), WithBasicAuth("admin", "secret"))
+	server, err := New(
+		"0.0.0.0",
+		8080,
+		WithBasicAuth("admin", "secret"),
+		WithStatusSnapshot(func() StatusSnapshot {
+			return StatusSnapshot{
+				Specs: []SpecStatus{{Name: "api-health"}},
+			}
+		}),
+	)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -117,8 +134,8 @@ func TestRootRouteWithBasicAuth(t *testing.T) {
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("authenticated status = %d, want %d", okRec.Code, http.StatusOK)
 	}
-	if got := okRec.Body.String(); got != "eddie 1.2.3" {
-		t.Fatalf("body = %q, want %q", got, "eddie 1.2.3")
+	if got := okRec.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("content-type = %q, want %q", got, "text/html; charset=utf-8")
 	}
 }
 
@@ -145,6 +162,9 @@ func TestHealthzRouteWithoutBasicAuth(t *testing.T) {
 	}
 	if body["status"] != "pass" {
 		t.Fatalf("status field = %q, want %q", body["status"], "pass")
+	}
+	if body["version"] != "" {
+		t.Fatalf("version field = %q, want empty", body["version"])
 	}
 }
 
@@ -194,7 +214,7 @@ func TestStatusRouteWithoutBasicAuth(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
 
@@ -212,7 +232,7 @@ func TestStatusRouteWithoutBasicAuth(t *testing.T) {
 	if !strings.Contains(body, "<table>") {
 		t.Fatalf("status body missing table: %q", body)
 	}
-	if !strings.Contains(body, `new EventSource("/status/events")`) {
+	if !strings.Contains(body, `new EventSource("/events")`) {
 		t.Fatalf("status body missing EventSource wiring: %q", body)
 	}
 	if !strings.Contains(body, "datetime=\"2026-02-27T18:00:00Z\">2026-02-27T18:00:00Z</time>") {
@@ -262,14 +282,14 @@ func TestStatusRouteWithBasicAuth(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	noAuthReq := httptest.NewRequest(http.MethodGet, "/status", nil)
+	noAuthReq := httptest.NewRequest(http.MethodGet, "/", nil)
 	noAuthRec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(noAuthRec, noAuthReq)
 	if noAuthRec.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d, want %d", noAuthRec.Code, http.StatusUnauthorized)
 	}
 
-	okReq := httptest.NewRequest(http.MethodGet, "/status", nil)
+	okReq := httptest.NewRequest(http.MethodGet, "/", nil)
 	okReq.SetBasicAuth("admin", "secret")
 	okRec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(okRec, okReq)
@@ -284,7 +304,7 @@ func TestStatusRouteWithoutStatusProvider(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/status", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(rec, req)
 
@@ -313,7 +333,7 @@ func TestStatusEventsRouteWithBasicAuth(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	noAuthReq := httptest.NewRequest(http.MethodGet, "/status/events", nil)
+	noAuthReq := httptest.NewRequest(http.MethodGet, "/events", nil)
 	noAuthRec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(noAuthRec, noAuthReq)
 	if noAuthRec.Code != http.StatusUnauthorized {
@@ -322,7 +342,7 @@ func TestStatusEventsRouteWithBasicAuth(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	okReq := httptest.NewRequest(http.MethodGet, "/status/events", nil).WithContext(ctx)
+	okReq := httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx)
 	okReq.SetBasicAuth("admin", "secret")
 	okRec := httptest.NewRecorder()
 	server.Handler().ServeHTTP(okRec, okReq)
