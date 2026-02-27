@@ -49,7 +49,7 @@ func main() {
 
 	// Configuration information
 	slog.Info("config",
-		"configuration_path", cfg.ConfigurationPath,
+		"spec_path", cfg.SpecPath,
 		"cycle_interval", cfg.CycleInterval.String(),
 		"log_level", cfg.LogLevel,
 	)

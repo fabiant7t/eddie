@@ -9,7 +9,7 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-default")
-	t.Setenv(envConfigPath, "")
+	t.Setenv(envSpecPath, "")
 	t.Setenv(envCycleInterval, "")
 	t.Setenv(envLogLevel, "")
 	t.Setenv(envHTTPAddress, "")
@@ -35,9 +35,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LogLevel != "INFO" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "INFO")
 	}
-	wantConfigPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir)
-	if cfg.ConfigurationPath != wantConfigPath {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, wantConfigPath)
+	wantSpecPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir)
+	if cfg.SpecPath != wantSpecPath {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, wantSpecPath)
 	}
 	if cfg.HTTPServer.Address != defaultHTTPAddress {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, defaultHTTPAddress)
@@ -55,7 +55,7 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-env")
-	t.Setenv(envConfigPath, "/etc/appordown/config.d")
+	t.Setenv(envSpecPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -81,8 +81,8 @@ func TestLoadFromEnv(t *testing.T) {
 	if cfg.LogLevel != "DEBUG" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "DEBUG")
 	}
-	if cfg.ConfigurationPath != "/etc/appordown/config.d" {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/etc/appordown/config.d")
+	if cfg.SpecPath != "/etc/appordown/config.d" {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/etc/appordown/config.d")
 	}
 	if cfg.HTTPServer.Address != "127.0.0.1" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "127.0.0.1")
@@ -122,7 +122,7 @@ func TestLoadFromEnv(t *testing.T) {
 
 func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-cli")
-	t.Setenv(envConfigPath, "/etc/appordown/config.d")
+	t.Setenv(envSpecPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -138,7 +138,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
-		"--config-path=/opt/appordown/config.d",
+		"--spec-path=/opt/appordown/config.d",
 		"--cycle-interval=60s",
 		"--log-level=warn",
 		"--http-address=0.0.0.0",
@@ -164,8 +164,8 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	if cfg.LogLevel != "WARN" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "WARN")
 	}
-	if cfg.ConfigurationPath != "/opt/appordown/config.d" {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/opt/appordown/config.d")
+	if cfg.SpecPath != "/opt/appordown/config.d" {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/opt/appordown/config.d")
 	}
 	if cfg.HTTPServer.Address != "0.0.0.0" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "0.0.0.0")
@@ -242,15 +242,15 @@ func TestLoadFromAltLogLevelEnv(t *testing.T) {
 	}
 }
 
-func TestLoadConfigPathAcceptsGlobAsString(t *testing.T) {
-	t.Setenv(envConfigPath, "conf.d/*.yaml")
+func TestLoadSpecPathAcceptsGlobAsString(t *testing.T) {
+	t.Setenv(envSpecPath, "conf.d/*.yaml")
 
 	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.ConfigurationPath != "conf.d/*.yaml" {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "conf.d/*.yaml")
+	if cfg.SpecPath != "conf.d/*.yaml" {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "conf.d/*.yaml")
 	}
 }

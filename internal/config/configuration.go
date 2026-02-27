@@ -18,7 +18,7 @@ const (
 	envLogLevel          = "APPORDOWN_LOG_LEVEL"
 	envLogLevelAlt       = "APPORDOWN_LOGLEVEL"
 	defaultConfigDir     = "config.d"
-	envConfigPath        = "APPORDOWN_CONFIG_PATH"
+	envSpecPath          = "APPORDOWN_SPEC_PATH"
 	defaultHTTPPort      = 8080
 	defaultHTTPAddress   = "0.0.0.0"
 	envHTTPAddress       = "APPORDOWN_HTTP_ADDRESS"
@@ -37,11 +37,11 @@ const (
 
 // Configuration holds runtime settings for the app.
 type Configuration struct {
-	ConfigurationPath string
-	CycleInterval     time.Duration
-	LogLevel          string
-	HTTPServer        HTTPServerConfiguration
-	Mailserver        MailserverConfiguration
+	SpecPath      string
+	CycleInterval time.Duration
+	LogLevel      string
+	HTTPServer    HTTPServerConfiguration
+	Mailserver    MailserverConfiguration
 }
 
 // HTTPServerConfiguration holds HTTP server settings.
@@ -66,15 +66,15 @@ type MailserverConfiguration struct {
 // Load parses configuration from environment and CLI args.
 // Precedence is: CLI argument, environment, default.
 func Load(args []string) (Configuration, error) {
-	defaultConfigurationPath, err := resolveDefaultConfigurationPath()
+	defaultSpecPath, err := resolveDefaultSpecPath()
 	if err != nil {
 		return Configuration{}, err
 	}
 
 	cfg := Configuration{
-		ConfigurationPath: defaultConfigurationPath,
-		CycleInterval:     defaultCycleInterval,
-		LogLevel:          defaultLogLevel,
+		SpecPath:      defaultSpecPath,
+		CycleInterval: defaultCycleInterval,
+		LogLevel:      defaultLogLevel,
 		HTTPServer: HTTPServerConfiguration{
 			Address: defaultHTTPAddress,
 			Port:    defaultHTTPPort,
@@ -84,8 +84,8 @@ func Load(args []string) (Configuration, error) {
 		},
 	}
 
-	if raw := os.Getenv(envConfigPath); raw != "" {
-		cfg.ConfigurationPath = raw
+	if raw := os.Getenv(envSpecPath); raw != "" {
+		cfg.SpecPath = raw
 	}
 	if raw := os.Getenv(envCycleInterval); raw != "" {
 		d, err := time.ParseDuration(raw)
@@ -148,7 +148,7 @@ func Load(args []string) (Configuration, error) {
 
 	fs := flag.NewFlagSet("appordown", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	fs.StringVar(&cfg.ConfigurationPath, "config-path", cfg.ConfigurationPath, "configuration path value")
+	fs.StringVar(&cfg.SpecPath, "spec-path", cfg.SpecPath, "spec path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (DEBUG, INFO, WARN, ERROR)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
@@ -199,7 +199,7 @@ func ParseSlogLevel(logLevel string) (slog.Level, error) {
 	}
 }
 
-func resolveDefaultConfigurationPath() (string, error) {
+func resolveDefaultSpecPath() (string, error) {
 	baseConfigDir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("resolve user config dir: %w", err)
