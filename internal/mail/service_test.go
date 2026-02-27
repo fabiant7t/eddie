@@ -1,6 +1,10 @@
 package mail
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+)
 
 func TestNewDefaults(t *testing.T) {
 	svc, err := New("smtp.example.com", "alice", "secret", "noreply@example.com")
@@ -96,3 +100,39 @@ func TestNewInvalidOptions(t *testing.T) {
 	}
 }
 
+func TestSendValidation(t *testing.T) {
+	svc, err := New("smtp.example.com", "alice", "secret", "noreply@example.com")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	err = svc.Send(nil, "ops@example.com", []byte("body"))
+	if err == nil {
+		t.Fatalf("Send() nil context error = nil, want error")
+	}
+
+	err = svc.Send(context.Background(), "", []byte("body"))
+	if err == nil {
+		t.Fatalf("Send() empty recipient error = nil, want error")
+	}
+
+	err = svc.Send(context.Background(), "ops@example.com", nil)
+	if err == nil {
+		t.Fatalf("Send() empty body error = nil, want error")
+	}
+}
+
+func TestSendCanceledContext(t *testing.T) {
+	svc, err := New("smtp.example.com", "alice", "secret", "noreply@example.com")
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = svc.Send(ctx, "ops@example.com", []byte("body"))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Send() error = %v, want context.Canceled", err)
+	}
+}
