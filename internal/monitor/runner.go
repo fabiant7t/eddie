@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fabiant7t/appordown/internal/mail"
-	"github.com/fabiant7t/appordown/internal/spec"
-	"github.com/fabiant7t/appordown/internal/state"
+	"github.com/fabiant7t/eddie/internal/mail"
+	"github.com/fabiant7t/eddie/internal/spec"
+	"github.com/fabiant7t/eddie/internal/state"
 )
 
 type transitionType int
@@ -249,7 +249,7 @@ func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := "Subject: appordown failure"
+	subject := "Subject: eddie failure"
 	body := fmt.Sprintf(
 		"%s\r\n\r\nspec failed: %s\r\nsource: %s\r\nreason: %v\r\n",
 		subject,
@@ -268,7 +268,7 @@ func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := "Subject: appordown recovery"
+	subject := "Subject: eddie recovery"
 	body := fmt.Sprintf(
 		"%s\r\n\r\nspec recovered: %s\r\nsource: %s\r\n",
 		subject,

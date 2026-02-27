@@ -3,8 +3,8 @@ package monitor
 import (
 	"testing"
 
-	"github.com/fabiant7t/appordown/internal/spec"
-	"github.com/fabiant7t/appordown/internal/state"
+	"github.com/fabiant7t/eddie/internal/spec"
+	"github.com/fabiant7t/eddie/internal/state"
 )
 
 func TestApplyCycleResultFailureAndRecoveryThresholds(t *testing.T) {

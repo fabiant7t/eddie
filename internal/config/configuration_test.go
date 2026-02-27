@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoadDefaults(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-default")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-default")
 	t.Setenv(envSpecPath, "")
 	t.Setenv(envCycleInterval, "")
 	t.Setenv(envLogLevel, "")
@@ -35,7 +35,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LogLevel != "INFO" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "INFO")
 	}
-	wantSpecPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir)
+	wantSpecPath := filepath.Join("/tmp/eddie-xdg-default", "eddie", defaultConfigDir)
 	if cfg.SpecPath != wantSpecPath {
 		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, wantSpecPath)
 	}
@@ -54,8 +54,8 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadFromEnv(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-env")
-	t.Setenv(envSpecPath, "/etc/appordown/config.d")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-env")
+	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -81,8 +81,8 @@ func TestLoadFromEnv(t *testing.T) {
 	if cfg.LogLevel != "DEBUG" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "DEBUG")
 	}
-	if cfg.SpecPath != "/etc/appordown/config.d" {
-		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/etc/appordown/config.d")
+	if cfg.SpecPath != "/etc/eddie/config.d" {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/etc/eddie/config.d")
 	}
 	if cfg.HTTPServer.Address != "127.0.0.1" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "127.0.0.1")
@@ -121,8 +121,8 @@ func TestLoadFromEnv(t *testing.T) {
 }
 
 func TestLoadCLIOverridesEnv(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-cli")
-	t.Setenv(envSpecPath, "/etc/appordown/config.d")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-cli")
+	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -138,7 +138,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
-		"--spec-path=/opt/appordown/config.d",
+		"--spec-path=/opt/eddie/config.d",
 		"--cycle-interval=60s",
 		"--log-level=warn",
 		"--http-address=0.0.0.0",
@@ -164,8 +164,8 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	if cfg.LogLevel != "WARN" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "WARN")
 	}
-	if cfg.SpecPath != "/opt/appordown/config.d" {
-		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/opt/appordown/config.d")
+	if cfg.SpecPath != "/opt/eddie/config.d" {
+		t.Fatalf("SpecPath = %q, want %q", cfg.SpecPath, "/opt/eddie/config.d")
 	}
 	if cfg.HTTPServer.Address != "0.0.0.0" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "0.0.0.0")
@@ -204,7 +204,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 }
 
 func TestLoadFormatEquivalence(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-format")
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-format")
 	t.Setenv(envCycleInterval, "")
 
 	cfgA, err := Load([]string{"--cycle-interval=60s"})

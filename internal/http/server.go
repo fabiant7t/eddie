@@ -107,14 +107,14 @@ func (s *Server) rootHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if s.basicAuthUsername != "" {
 		username, password, ok := r.BasicAuth()
 		if !ok || username != s.basicAuthUsername || password != s.basicAuthPassword {
-			w.Header().Set("WWW-Authenticate", `Basic realm="appordown"`)
+			w.Header().Set("WWW-Authenticate", `Basic realm="eddie"`)
 			nethttp.Error(w, "unauthorized", nethttp.StatusUnauthorized)
 			return
 		}
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte(fmt.Sprintf("app or down %s", s.appVersion)))
+	_, _ = w.Write([]byte(fmt.Sprintf("eddie %s", s.appVersion)))
 }
 
 func (s *Server) healthzHandler(w nethttp.ResponseWriter, r *nethttp.Request) {

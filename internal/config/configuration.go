@@ -13,26 +13,26 @@ import (
 
 const (
 	defaultCycleInterval = 60 * time.Second
-	envCycleInterval     = "APPORDOWN_CYCLE_INTERVAL"
+	envCycleInterval     = "EDDIE_CYCLE_INTERVAL"
 	defaultLogLevel      = "INFO"
-	envLogLevel          = "APPORDOWN_LOG_LEVEL"
-	envLogLevelAlt       = "APPORDOWN_LOGLEVEL"
+	envLogLevel          = "EDDIE_LOG_LEVEL"
+	envLogLevelAlt       = "EDDIE_LOGLEVEL"
 	defaultConfigDir     = "config.d"
-	envSpecPath          = "APPORDOWN_SPEC_PATH"
+	envSpecPath          = "EDDIE_SPEC_PATH"
 	defaultHTTPPort      = 8080
 	defaultHTTPAddress   = "0.0.0.0"
-	envHTTPAddress       = "APPORDOWN_HTTP_ADDRESS"
-	envHTTPPort          = "APPORDOWN_HTTP_PORT"
-	envHTTPBasicUser     = "APPORDOWN_HTTP_BASIC_AUTH_USERNAME"
-	envHTTPBasicPassword = "APPORDOWN_HTTP_BASIC_AUTH_PASSWORD"
+	envHTTPAddress       = "EDDIE_HTTP_ADDRESS"
+	envHTTPPort          = "EDDIE_HTTP_PORT"
+	envHTTPBasicUser     = "EDDIE_HTTP_BASIC_AUTH_USERNAME"
+	envHTTPBasicPassword = "EDDIE_HTTP_BASIC_AUTH_PASSWORD"
 	defaultMailPort      = 587
-	envMailEndpoint      = "APPORDOWN_MAIL_ENDPOINT"
-	envMailPort          = "APPORDOWN_MAIL_PORT"
-	envMailUsername      = "APPORDOWN_MAIL_USERNAME"
-	envMailPassword      = "APPORDOWN_MAIL_PASSWORD"
-	envMailSender        = "APPORDOWN_MAIL_SENDER"
-	envMailReceivers     = "APPORDOWN_MAIL_RECEIVERS"
-	envMailNoTLS         = "APPORDOWN_MAIL_NO_TLS"
+	envMailEndpoint      = "EDDIE_MAIL_ENDPOINT"
+	envMailPort          = "EDDIE_MAIL_PORT"
+	envMailUsername      = "EDDIE_MAIL_USERNAME"
+	envMailPassword      = "EDDIE_MAIL_PASSWORD"
+	envMailSender        = "EDDIE_MAIL_SENDER"
+	envMailReceivers     = "EDDIE_MAIL_RECEIVERS"
+	envMailNoTLS         = "EDDIE_MAIL_NO_TLS"
 )
 
 // Configuration holds runtime settings for the app.
@@ -146,7 +146,7 @@ func Load(args []string) (Configuration, error) {
 		cfg.Mailserver.NoTLS = noTLS
 	}
 
-	fs := flag.NewFlagSet("appordown", flag.ContinueOnError)
+	fs := flag.NewFlagSet("eddie", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&cfg.SpecPath, "spec-path", cfg.SpecPath, "spec path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
@@ -205,7 +205,7 @@ func resolveDefaultSpecPath() (string, error) {
 		return "", fmt.Errorf("resolve user config dir: %w", err)
 	}
 
-	return filepath.Join(baseConfigDir, "appordown", defaultConfigDir), nil
+	return filepath.Join(baseConfigDir, "eddie", defaultConfigDir), nil
 }
 func parseCSVList(raw string) []string {
 	parts := strings.Split(raw, ",")

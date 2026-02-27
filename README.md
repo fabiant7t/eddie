@@ -1,12 +1,12 @@
-# appordown
+# eddie
 
-`appordown` is a small Go monitoring app that:
+`eddie` is a small Go monitoring app that:
 
 - Loads runtime configuration from environment variables and CLI flags.
 - Parses one or more HTTP check specs from YAML files.
 - Runs active specs in monitoring cycles (in parallel).
 - Starts an HTTP server with:
-  - `/` returning `app or down <version>` (optionally basic-auth protected)
+  - `/` returning `eddie <version>` (optionally basic-auth protected)
   - `/healthz` returning `application/health+json`
 
 ## Build and Run
@@ -24,34 +24,34 @@ Configuration is read with precedence: `CLI > ENV > defaults`.
 
 ### Main Settings
 
-- `APPORDOWN_SPEC_PATH` / `--spec-path`  
+- `EDDIE_SPEC_PATH` / `--spec-path`  
   Path expression for spec files. Supports relative, absolute, `~`, and globs (including `**`).  
-  Default: XDG path ending in `appordown/config.d`.
+  Default: XDG path ending in `eddie/config.d`.
 
-- `APPORDOWN_CYCLE_INTERVAL` / `--cycle-interval`  
+- `EDDIE_CYCLE_INTERVAL` / `--cycle-interval`  
   Go duration string (for example `60s`, `1m`).  
   Default: `60s`.
 
-- `APPORDOWN_LOG_LEVEL` (or `APPORDOWN_LOGLEVEL`) / `--log-level`  
+- `EDDIE_LOG_LEVEL` (or `EDDIE_LOGLEVEL`) / `--log-level`  
   One of `DEBUG`, `INFO`, `WARN`, `ERROR`.  
   Default: `INFO`.
 
 ### HTTP Server
 
-- `APPORDOWN_HTTP_ADDRESS` / `--http-address` (default `0.0.0.0`)
-- `APPORDOWN_HTTP_PORT` / `--http-port` (default `8080`)
-- `APPORDOWN_HTTP_BASIC_AUTH_USERNAME` / `--http-basic-auth-username` (optional)
-- `APPORDOWN_HTTP_BASIC_AUTH_PASSWORD` / `--http-basic-auth-password` (optional)
+- `EDDIE_HTTP_ADDRESS` / `--http-address` (default `0.0.0.0`)
+- `EDDIE_HTTP_PORT` / `--http-port` (default `8080`)
+- `EDDIE_HTTP_BASIC_AUTH_USERNAME` / `--http-basic-auth-username` (optional)
+- `EDDIE_HTTP_BASIC_AUTH_PASSWORD` / `--http-basic-auth-password` (optional)
 
 ### Mail
 
-- `APPORDOWN_MAIL_ENDPOINT` / `--mail-endpoint`
-- `APPORDOWN_MAIL_PORT` / `--mail-port` (default `587`)
-- `APPORDOWN_MAIL_USERNAME` / `--mail-username`
-- `APPORDOWN_MAIL_PASSWORD` / `--mail-password`
-- `APPORDOWN_MAIL_SENDER` / `--mail-sender`
-- `APPORDOWN_MAIL_RECEIVERS` / repeated `--mail-receiver`
-- `APPORDOWN_MAIL_NO_TLS` / `--mail-no-tls`
+- `EDDIE_MAIL_ENDPOINT` / `--mail-endpoint`
+- `EDDIE_MAIL_PORT` / `--mail-port` (default `587`)
+- `EDDIE_MAIL_USERNAME` / `--mail-username`
+- `EDDIE_MAIL_PASSWORD` / `--mail-password`
+- `EDDIE_MAIL_SENDER` / `--mail-sender`
+- `EDDIE_MAIL_RECEIVERS` / repeated `--mail-receiver`
+- `EDDIE_MAIL_NO_TLS` / `--mail-no-tls`
 
 ## Spec Format
 
@@ -101,7 +101,7 @@ http:
 
 ## Parse Failure Contract
 
-- If spec parsing fails at startup, appordown:
+- If spec parsing fails at startup, eddie:
   - sends an email to all configured mail receivers with error details (if mail is configured)
   - exits the program
 

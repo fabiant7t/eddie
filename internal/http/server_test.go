@@ -81,8 +81,8 @@ func TestRootRouteWithoutBasicAuth(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if got := rec.Body.String(); got != "app or down 1.2.3" {
-		t.Fatalf("body = %q, want %q", got, "app or down 1.2.3")
+	if got := rec.Body.String(); got != "eddie 1.2.3" {
+		t.Fatalf("body = %q, want %q", got, "eddie 1.2.3")
 	}
 }
 
@@ -114,8 +114,8 @@ func TestRootRouteWithBasicAuth(t *testing.T) {
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("authenticated status = %d, want %d", okRec.Code, http.StatusOK)
 	}
-	if got := okRec.Body.String(); got != "app or down 1.2.3" {
-		t.Fatalf("body = %q, want %q", got, "app or down 1.2.3")
+	if got := okRec.Body.String(); got != "eddie 1.2.3" {
+		t.Fatalf("body = %q, want %q", got, "eddie 1.2.3")
 	}
 }
 

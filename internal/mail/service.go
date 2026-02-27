@@ -228,7 +228,7 @@ func formatMessage(sender, recipient string, body []byte) []byte {
 	b.WriteString("To: ")
 	b.WriteString(recipient)
 	b.WriteString("\r\n")
-	b.WriteString("Subject: appordown notification\r\n")
+	b.WriteString("Subject: eddie notification\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	b.WriteString("\r\n")

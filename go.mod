@@ -1,4 +1,4 @@
-module github.com/fabiant7t/appordown
+module github.com/fabiant7t/eddie
 
 go 1.25.0
 
