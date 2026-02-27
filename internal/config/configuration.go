@@ -11,6 +11,12 @@ import (
 const (
 	defaultCycleInterval = 60 * time.Second
 	envCycleInterval     = "APPORDOWN_CYCLE_INTERVAL"
+	defaultHTTPPort      = 8080
+	defaultHTTPAddress   = "0.0.0.0"
+	envHTTPAddress       = "APPORDOWN_HTTP_ADDRESS"
+	envHTTPPort          = "APPORDOWN_HTTP_PORT"
+	envHTTPBasicUser     = "APPORDOWN_HTTP_BASIC_AUTH_USERNAME"
+	envHTTPBasicPassword = "APPORDOWN_HTTP_BASIC_AUTH_PASSWORD"
 	defaultMailPort      = 587
 	envMailEndpoint      = "APPORDOWN_MAIL_ENDPOINT"
 	envMailPort          = "APPORDOWN_MAIL_PORT"
@@ -23,7 +29,16 @@ const (
 // Configuration holds runtime settings for the app.
 type Configuration struct {
 	CycleInterval time.Duration
+	HTTPServer    HTTPServerConfiguration
 	Mailserver    MailserverConfiguration
+}
+
+// HTTPServerConfiguration holds HTTP server settings.
+type HTTPServerConfiguration struct {
+	Address           string
+	Port              int
+	BasicAuthUsername string
+	BasicAuthPassword string
 }
 
 // MailserverConfiguration holds SMTP settings.
@@ -41,6 +56,10 @@ type MailserverConfiguration struct {
 func Load(args []string) (Configuration, error) {
 	cfg := Configuration{
 		CycleInterval: defaultCycleInterval,
+		HTTPServer: HTTPServerConfiguration{
+			Address: defaultHTTPAddress,
+			Port:    defaultHTTPPort,
+		},
 		Mailserver: MailserverConfiguration{
 			Port: defaultMailPort,
 		},
@@ -52,6 +71,22 @@ func Load(args []string) (Configuration, error) {
 			return Configuration{}, fmt.Errorf("invalid %s: %w", envCycleInterval, err)
 		}
 		cfg.CycleInterval = d
+	}
+	if raw := os.Getenv(envHTTPAddress); raw != "" {
+		cfg.HTTPServer.Address = raw
+	}
+	if raw := os.Getenv(envHTTPPort); raw != "" {
+		port, err := strconv.Atoi(raw)
+		if err != nil {
+			return Configuration{}, fmt.Errorf("invalid %s: %w", envHTTPPort, err)
+		}
+		cfg.HTTPServer.Port = port
+	}
+	if raw := os.Getenv(envHTTPBasicUser); raw != "" {
+		cfg.HTTPServer.BasicAuthUsername = raw
+	}
+	if raw := os.Getenv(envHTTPBasicPassword); raw != "" {
+		cfg.HTTPServer.BasicAuthPassword = raw
 	}
 
 	if raw := os.Getenv(envMailEndpoint); raw != "" {
@@ -84,6 +119,10 @@ func Load(args []string) (Configuration, error) {
 	fs := flag.NewFlagSet("appordown", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
+	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
+	fs.IntVar(&cfg.HTTPServer.Port, "http-port", cfg.HTTPServer.Port, "http server listen port")
+	fs.StringVar(&cfg.HTTPServer.BasicAuthUsername, "http-basic-auth-username", cfg.HTTPServer.BasicAuthUsername, "http basic auth username")
+	fs.StringVar(&cfg.HTTPServer.BasicAuthPassword, "http-basic-auth-password", cfg.HTTPServer.BasicAuthPassword, "http basic auth password")
 	fs.StringVar(&cfg.Mailserver.Endpoint, "mail-endpoint", cfg.Mailserver.Endpoint, "mail server endpoint")
 	fs.IntVar(&cfg.Mailserver.Port, "mail-port", cfg.Mailserver.Port, "mail server port")
 	fs.StringVar(&cfg.Mailserver.Username, "mail-username", cfg.Mailserver.Username, "mail server username")

@@ -7,6 +7,10 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	t.Setenv(envCycleInterval, "")
+	t.Setenv(envHTTPAddress, "")
+	t.Setenv(envHTTPPort, "")
+	t.Setenv(envHTTPBasicUser, "")
+	t.Setenv(envHTTPBasicPassword, "")
 	t.Setenv(envMailEndpoint, "")
 	t.Setenv(envMailPort, "")
 	t.Setenv(envMailUsername, "")
@@ -22,6 +26,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
 	}
+	if cfg.HTTPServer.Address != defaultHTTPAddress {
+		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, defaultHTTPAddress)
+	}
+	if cfg.HTTPServer.Port != defaultHTTPPort {
+		t.Fatalf("HTTPServer.Port = %v, want %v", cfg.HTTPServer.Port, defaultHTTPPort)
+	}
 	if cfg.Mailserver.Port != defaultMailPort {
 		t.Fatalf("Mailserver.Port = %v, want %v", cfg.Mailserver.Port, defaultMailPort)
 	}
@@ -29,6 +39,10 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadFromEnv(t *testing.T) {
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envHTTPAddress, "127.0.0.1")
+	t.Setenv(envHTTPPort, "9090")
+	t.Setenv(envHTTPBasicUser, "admin")
+	t.Setenv(envHTTPBasicPassword, "admin-secret")
 	t.Setenv(envMailEndpoint, "smtp.example.com")
 	t.Setenv(envMailPort, "2525")
 	t.Setenv(envMailUsername, "alice")
@@ -43,6 +57,18 @@ func TestLoadFromEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.HTTPServer.Address != "127.0.0.1" {
+		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "127.0.0.1")
+	}
+	if cfg.HTTPServer.Port != 9090 {
+		t.Fatalf("HTTPServer.Port = %v, want %v", cfg.HTTPServer.Port, 9090)
+	}
+	if cfg.HTTPServer.BasicAuthUsername != "admin" {
+		t.Fatalf("HTTPServer.BasicAuthUsername = %q, want %q", cfg.HTTPServer.BasicAuthUsername, "admin")
+	}
+	if cfg.HTTPServer.BasicAuthPassword != "admin-secret" {
+		t.Fatalf("HTTPServer.BasicAuthPassword = %q, want %q", cfg.HTTPServer.BasicAuthPassword, "admin-secret")
 	}
 	if cfg.Mailserver.Endpoint != "smtp.example.com" {
 		t.Fatalf("Mailserver.Endpoint = %q, want %q", cfg.Mailserver.Endpoint, "smtp.example.com")
@@ -66,6 +92,10 @@ func TestLoadFromEnv(t *testing.T) {
 
 func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envHTTPAddress, "127.0.0.1")
+	t.Setenv(envHTTPPort, "9090")
+	t.Setenv(envHTTPBasicUser, "admin")
+	t.Setenv(envHTTPBasicPassword, "admin-secret")
 	t.Setenv(envMailEndpoint, "smtp.example.com")
 	t.Setenv(envMailPort, "2525")
 	t.Setenv(envMailUsername, "alice")
@@ -75,6 +105,10 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	cfg, err := Load([]string{
 		"--cycle-interval=60s",
+		"--http-address=0.0.0.0",
+		"--http-port=8088",
+		"--http-basic-auth-username=cli-admin",
+		"--http-basic-auth-password=cli-secret",
 		"--mail-endpoint=smtp.cli.example.com",
 		"--mail-port=1025",
 		"--mail-username=bob",
@@ -88,6 +122,18 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.HTTPServer.Address != "0.0.0.0" {
+		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "0.0.0.0")
+	}
+	if cfg.HTTPServer.Port != 8088 {
+		t.Fatalf("HTTPServer.Port = %v, want %v", cfg.HTTPServer.Port, 8088)
+	}
+	if cfg.HTTPServer.BasicAuthUsername != "cli-admin" {
+		t.Fatalf("HTTPServer.BasicAuthUsername = %q, want %q", cfg.HTTPServer.BasicAuthUsername, "cli-admin")
+	}
+	if cfg.HTTPServer.BasicAuthPassword != "cli-secret" {
+		t.Fatalf("HTTPServer.BasicAuthPassword = %q, want %q", cfg.HTTPServer.BasicAuthPassword, "cli-secret")
 	}
 	if cfg.Mailserver.Endpoint != "smtp.cli.example.com" {
 		t.Fatalf("Mailserver.Endpoint = %q, want %q", cfg.Mailserver.Endpoint, "smtp.cli.example.com")
