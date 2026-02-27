@@ -97,6 +97,7 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 	if !ok {
 		currentState = state.SpecState{Status: state.StatusHealthy}
 	}
+	previousState := currentState
 	currentState = resetStaleConsecutiveState(currentState, cycleAt, r.cycleInterval)
 
 	nextState, transition := applyCycleResult(
@@ -105,6 +106,18 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 		failureThreshold,
 		successThreshold,
 	)
+	if hasStateChanged(previousState, nextState) {
+		slog.Info("spec_state_changed",
+			"name", parsedSpec.HTTP.Name,
+			"source", parsedSpec.SourcePath,
+			"from_status", previousState.Status,
+			"to_status", nextState.Status,
+			"from_consecutive_failures", previousState.ConsecutiveFailures,
+			"to_consecutive_failures", nextState.ConsecutiveFailures,
+			"from_consecutive_successes", previousState.ConsecutiveSuccesses,
+			"to_consecutive_successes", nextState.ConsecutiveSuccesses,
+		)
+	}
 	nextState.LastCycleAt = cycleAt
 	r.stateStore.Set(parsedSpec.HTTP.Name, nextState)
 
@@ -123,6 +136,12 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 		)
 		r.triggerRecoveryActions(parsedSpec)
 	}
+}
+
+func hasStateChanged(before, after state.SpecState) bool {
+	return before.Status != after.Status ||
+		before.ConsecutiveFailures != after.ConsecutiveFailures ||
+		before.ConsecutiveSuccesses != after.ConsecutiveSuccesses
 }
 
 func resetStaleConsecutiveState(current state.SpecState, cycleAt time.Time, cycleInterval time.Duration) state.SpecState {

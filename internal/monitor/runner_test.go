@@ -115,3 +115,40 @@ func TestResetStaleConsecutiveStateKeepsFreshCounters(t *testing.T) {
 		t.Fatalf("ConsecutiveSuccesses = %d, want %d", next.ConsecutiveSuccesses, current.ConsecutiveSuccesses)
 	}
 }
+
+func TestHasStateChanged(t *testing.T) {
+	base := state.SpecState{
+		Status:               state.StatusHealthy,
+		ConsecutiveFailures:  1,
+		ConsecutiveSuccesses: 0,
+		LastCycleAt:          time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC),
+	}
+
+	if hasStateChanged(base, base) {
+		t.Fatalf("hasStateChanged(base, base) = true, want false")
+	}
+
+	statusChanged := base
+	statusChanged.Status = state.StatusFailing
+	if !hasStateChanged(base, statusChanged) {
+		t.Fatalf("status change was not detected")
+	}
+
+	failureCountChanged := base
+	failureCountChanged.ConsecutiveFailures = 2
+	if !hasStateChanged(base, failureCountChanged) {
+		t.Fatalf("failure counter change was not detected")
+	}
+
+	successCountChanged := base
+	successCountChanged.ConsecutiveSuccesses = 1
+	if !hasStateChanged(base, successCountChanged) {
+		t.Fatalf("success counter change was not detected")
+	}
+
+	timestampOnlyChanged := base
+	timestampOnlyChanged.LastCycleAt = base.LastCycleAt.Add(time.Second)
+	if hasStateChanged(base, timestampOnlyChanged) {
+		t.Fatalf("timestamp-only change should be ignored")
+	}
+}
