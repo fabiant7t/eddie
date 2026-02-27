@@ -12,6 +12,7 @@ LD_FLAGS += -X main.revision=$(REVISION)
 help:
 	@echo "Targets:"
 	@echo "  build    Build $(APP_NAME) with embedded version metadata"
+	@echo "  run      Build and run $(APP_NAME)"
 
 .PHONY: build
 build:
@@ -19,3 +20,7 @@ build:
 		-ldflags "$(LD_FLAGS)" \
 		-o $(APP_NAME) \
 		./cmd/appordown
+
+.PHONY: run
+run: build
+	./$(APP_NAME)
