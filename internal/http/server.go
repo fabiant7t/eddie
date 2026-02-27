@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net"
 	nethttp "net/http"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -47,6 +47,25 @@ type SpecStatus struct {
 	LastCycleAt          time.Time
 }
 
+type statusRow struct {
+	Name                 string `json:"name"`
+	SourcePath           string `json:"source_path"`
+	Disabled             bool   `json:"disabled"`
+	HasState             bool   `json:"has_state"`
+	State                string `json:"state"`
+	ConsecutiveFailures  int    `json:"consecutive_failures"`
+	ConsecutiveSuccesses int    `json:"consecutive_successes"`
+	LastCycleStartedAt   string `json:"last_cycle_started_at"`
+	LastCycleAt          string `json:"last_cycle_at"`
+	StateClass           string `json:"state_class"`
+}
+
+type statusViewData struct {
+	GeneratedAt string      `json:"generated_at"`
+	SpecCount   int         `json:"spec_count"`
+	Rows        []statusRow `json:"rows"`
+}
+
 // New creates a new HTTP server with required network settings.
 func New(address string, port int, opts ...Option) (*Server, error) {
 	if address == "" {
@@ -74,6 +93,7 @@ func New(address string, port int, opts ...Option) (*Server, error) {
 	mux.HandleFunc("/", server.rootHandler)
 	mux.HandleFunc("/healthz", server.healthzHandler)
 	mux.HandleFunc("/status", server.statusHandler)
+	mux.HandleFunc("/status/events", server.statusEventsHandler)
 
 	server.httpServer = &nethttp.Server{
 		Addr:    net.JoinHostPort(server.address, strconv.Itoa(server.port)),
@@ -179,10 +199,334 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	if snapshot.GeneratedAt.IsZero() {
 		snapshot.GeneratedAt = time.Now().UTC()
 	}
+	data := buildStatusViewData(snapshot)
 
-	var body strings.Builder
-	fmt.Fprintf(&body, "generated_at=%s\n", snapshot.GeneratedAt.UTC().Format(time.RFC3339Nano))
-	fmt.Fprintf(&body, "spec_count=%d\n", len(snapshot.Specs))
+	const statusPage = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eddie status</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8f9fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --healthy: #065f46;
+      --failing: #991b1b;
+      --unknown: #374151;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 13px/1.35 "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    main {
+      max-width: 1300px;
+      margin: 1rem auto;
+      padding: 0 0.75rem;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    header {
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    h1 {
+      margin: 0;
+      font-size: 0.88rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-transform: lowercase;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .table-wrap {
+      max-height: calc(100vh - 7rem);
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 0.76rem;
+    }
+    caption {
+      text-align: left;
+      padding: 0.45rem 0.85rem 0;
+      color: var(--muted);
+      font-size: 0.72rem;
+    }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--panel);
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      padding: 0.36rem 0.52rem;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 0.28rem 0.52rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: #fafafa; }
+    code {
+      font: 0.74rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--muted);
+    }
+    .state-healthy { color: var(--healthy); font-weight: 600; }
+    .state-failing { color: var(--failing); font-weight: 600; }
+    .state-unknown { color: var(--unknown); font-weight: 600; }
+    .bool { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <article class="panel">
+      <header>
+        <h1>eddie status</h1>
+        <div class="meta">
+          <span>generated <time id="generated-at" datetime="{{ .GeneratedAt }}">{{ .GeneratedAt }}</time></span>
+          <span>•</span>
+          <span id="spec-count">{{ .SpecCount }} specs</span>
+          <span>•</span>
+          <span id="stream-state">connecting…</span>
+        </div>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <caption>Current spec state and recent cycle timing</caption>
+          <colgroup>
+            <col style="width: 17rem" />
+            <col style="width: 5.5rem" />
+            <col style="width: 3.8rem" />
+            <col style="width: 3.8rem" />
+            <col style="width: 3.8rem" />
+            <col style="width: 3.8rem" />
+            <col style="width: 13rem" />
+            <col style="width: 13rem" />
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">State</th>
+              <th scope="col">Off</th>
+              <th scope="col">State?</th>
+              <th scope="col">Fail</th>
+              <th scope="col">Succ</th>
+              <th scope="col">Started</th>
+              <th scope="col">Done</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody id="status-rows">
+            {{ range .Rows }}
+            <tr>
+              <td title="{{ .Name }}">{{ .Name }}</td>
+              <td><span class="{{ .StateClass }}">{{ .State }}</span></td>
+              <td class="bool">{{ .Disabled }}</td>
+              <td class="bool">{{ .HasState }}</td>
+              <td>{{ .ConsecutiveFailures }}</td>
+              <td>{{ .ConsecutiveSuccesses }}</td>
+              <td><time datetime="{{ .LastCycleStartedAt }}">{{ .LastCycleStartedAt }}</time></td>
+              <td><time datetime="{{ .LastCycleAt }}">{{ .LastCycleAt }}</time></td>
+              <td title="{{ .SourcePath }}"><code>{{ .SourcePath }}</code></td>
+            </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </main>
+  <script>
+    (() => {
+      const generatedAtEl = document.getElementById("generated-at");
+      const specCountEl = document.getElementById("spec-count");
+      const rowsEl = document.getElementById("status-rows");
+      const streamStateEl = document.getElementById("stream-state");
+      if (!generatedAtEl || !specCountEl || !rowsEl || !streamStateEl) return;
+
+      function escapeHTML(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function stateClass(state) {
+        if (state === "healthy") return "state-healthy";
+        if (state === "failing") return "state-failing";
+        return "state-unknown";
+      }
+
+      function setStreamState(text) {
+        streamStateEl.textContent = text;
+      }
+
+      function render(snapshot) {
+        if (!snapshot || typeof snapshot !== "object") return;
+
+        const generatedAt = String(snapshot.generated_at || "unknown");
+        generatedAtEl.textContent = generatedAt;
+        generatedAtEl.setAttribute("datetime", generatedAt);
+
+        const rows = Array.isArray(snapshot.rows) ? snapshot.rows : [];
+        specCountEl.textContent = String(rows.length) + " specs";
+
+        const html = rows.map((row) => {
+          const name = escapeHTML(row.name ?? "");
+          const sourcePath = escapeHTML(row.source_path ?? "");
+          const state = escapeHTML(row.state ?? "unknown");
+          const disabled = String(Boolean(row.disabled));
+          const hasState = String(Boolean(row.has_state));
+          const failures = escapeHTML(row.consecutive_failures ?? 0);
+          const successes = escapeHTML(row.consecutive_successes ?? 0);
+          const lastStarted = escapeHTML(row.last_cycle_started_at ?? "never");
+          const lastCompleted = escapeHTML(row.last_cycle_at ?? "never");
+          const cls = stateClass(row.state);
+
+          return "<tr>"
+            + "<td title=\"" + name + "\">" + name + "</td>"
+            + "<td><span class=\"" + cls + "\">" + state + "</span></td>"
+            + "<td class=\"bool\">" + disabled + "</td>"
+            + "<td class=\"bool\">" + hasState + "</td>"
+            + "<td>" + failures + "</td>"
+            + "<td>" + successes + "</td>"
+            + "<td><time datetime=\"" + lastStarted + "\">" + lastStarted + "</time></td>"
+            + "<td><time datetime=\"" + lastCompleted + "\">" + lastCompleted + "</time></td>"
+            + "<td title=\"" + sourcePath + "\"><code>" + sourcePath + "</code></td>"
+            + "</tr>";
+        }).join("");
+
+        rowsEl.innerHTML = html;
+      }
+
+      if (!window.EventSource) {
+        setStreamState("live updates unsupported");
+        return;
+      }
+
+      const stream = new EventSource("/status/events");
+      stream.addEventListener("snapshot", (event) => {
+        try {
+          render(JSON.parse(event.data));
+          setStreamState("live");
+        } catch {
+          setStreamState("parse error");
+        }
+      });
+      stream.onopen = () => setStreamState("live");
+      stream.onerror = () => setStreamState("reconnecting…");
+    })();
+  </script>
+</body>
+</html>`
+
+	tmpl := template.Must(template.New("status").Parse(statusPage))
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(nethttp.StatusOK)
+	_ = tmpl.Execute(w, data)
+}
+
+func (s *Server) statusEventsHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.URL.Path != "/status/events" {
+		nethttp.NotFound(w, r)
+		return
+	}
+	if !s.requireBasicAuth(w, r) {
+		return
+	}
+	if s.statusSnapshotFn == nil {
+		nethttp.Error(w, "status endpoint is not configured", nethttp.StatusServiceUnavailable)
+		return
+	}
+
+	flusher, ok := w.(nethttp.Flusher)
+	if !ok {
+		nethttp.Error(w, "streaming is not supported", nethttp.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(nethttp.StatusOK)
+
+	sendSnapshot := func() error {
+		snapshot := s.statusSnapshotFn()
+		if snapshot.GeneratedAt.IsZero() {
+			snapshot.GeneratedAt = time.Now().UTC()
+		}
+
+		payload, err := json.Marshal(buildStatusViewData(snapshot))
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "event: snapshot\ndata: %s\n\n", payload); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+
+	if err := sendSnapshot(); err != nil {
+		return
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if err := sendSnapshot(); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func buildStatusViewData(snapshot StatusSnapshot) statusViewData {
+	data := statusViewData{
+		GeneratedAt: snapshot.GeneratedAt.UTC().Format(time.RFC3339Nano),
+		SpecCount:   len(snapshot.Specs),
+		Rows:        make([]statusRow, 0, len(snapshot.Specs)),
+	}
+
 	for _, specStatus := range snapshot.Specs {
 		lastCycleStarted := "never"
 		if specStatus.HasState && !specStatus.LastCycleStartedAt.IsZero() {
@@ -198,24 +542,29 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 			status = "unknown"
 		}
 
-		fmt.Fprintf(
-			&body,
-			"name=%s source=%s disabled=%t has_state=%t state=%s consecutive_failures=%d consecutive_successes=%d last_cycle_started_at=%s last_cycle_at=%s\n",
-			specStatus.Name,
-			specStatus.SourcePath,
-			specStatus.Disabled,
-			specStatus.HasState,
-			status,
-			specStatus.ConsecutiveFailures,
-			specStatus.ConsecutiveSuccesses,
-			lastCycleStarted,
-			lastCycle,
-		)
+		stateClass := "state-unknown"
+		switch status {
+		case "healthy":
+			stateClass = "state-healthy"
+		case "failing":
+			stateClass = "state-failing"
+		}
+
+		data.Rows = append(data.Rows, statusRow{
+			Name:                 specStatus.Name,
+			SourcePath:           specStatus.SourcePath,
+			Disabled:             specStatus.Disabled,
+			HasState:             specStatus.HasState,
+			State:                status,
+			ConsecutiveFailures:  specStatus.ConsecutiveFailures,
+			ConsecutiveSuccesses: specStatus.ConsecutiveSuccesses,
+			LastCycleStartedAt:   lastCycleStarted,
+			LastCycleAt:          lastCycle,
+			StateClass:           stateClass,
+		})
 	}
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(nethttp.StatusOK)
-	_, _ = w.Write([]byte(body.String()))
+	return data
 }
 
 func (s *Server) requireBasicAuth(w nethttp.ResponseWriter, r *nethttp.Request) bool {

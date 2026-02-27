@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -200,39 +201,48 @@ func TestStatusRouteWithoutBasicAuth(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if got := rec.Header().Get("Content-Type"); got != "text/plain; charset=utf-8" {
-		t.Fatalf("content-type = %q, want %q", got, "text/plain; charset=utf-8")
+	if got := rec.Header().Get("Content-Type"); got != "text/html; charset=utf-8" {
+		t.Fatalf("content-type = %q, want %q", got, "text/html; charset=utf-8")
 	}
 
 	body := rec.Body.String()
-	if !strings.Contains(body, "generated_at=2026-02-27T18:00:00Z") {
+	if !strings.Contains(body, "<!doctype html>") {
+		t.Fatalf("status body missing html doctype: %q", body)
+	}
+	if !strings.Contains(body, "<table>") {
+		t.Fatalf("status body missing table: %q", body)
+	}
+	if !strings.Contains(body, `new EventSource("/status/events")`) {
+		t.Fatalf("status body missing EventSource wiring: %q", body)
+	}
+	if !strings.Contains(body, "datetime=\"2026-02-27T18:00:00Z\">2026-02-27T18:00:00Z</time>") {
 		t.Fatalf("status body missing generated_at: %q", body)
 	}
-	if !strings.Contains(body, "spec_count=2") {
+	if !strings.Contains(body, "2 specs") {
 		t.Fatalf("status body missing spec_count: %q", body)
 	}
-	if !strings.Contains(body, "name=api-health") {
+	if !strings.Contains(body, ">api-health<") {
 		t.Fatalf("status body missing first spec name: %q", body)
 	}
-	if !strings.Contains(body, "state=healthy") {
+	if !strings.Contains(body, "state-healthy") {
 		t.Fatalf("status body missing first spec state: %q", body)
 	}
-	if !strings.Contains(body, "last_cycle_started_at=2026-02-27T17:58:00Z") {
+	if !strings.Contains(body, "<time datetime=\"2026-02-27T17:58:00Z\">2026-02-27T17:58:00Z</time>") {
 		t.Fatalf("status body missing first spec last_cycle_started_at: %q", body)
 	}
-	if !strings.Contains(body, "last_cycle_at=2026-02-27T17:59:00Z") {
+	if !strings.Contains(body, "<time datetime=\"2026-02-27T17:59:00Z\">2026-02-27T17:59:00Z</time>") {
 		t.Fatalf("status body missing first spec last_cycle_at: %q", body)
 	}
-	if !strings.Contains(body, "name=disabled-check") {
+	if !strings.Contains(body, ">disabled-check<") {
 		t.Fatalf("status body missing second spec name: %q", body)
 	}
-	if !strings.Contains(body, "state=unknown") {
+	if !strings.Contains(body, "state-unknown") {
 		t.Fatalf("status body missing unknown state for second spec: %q", body)
 	}
-	if !strings.Contains(body, "last_cycle_started_at=never") {
+	if !strings.Contains(body, "<time datetime=\"never\">never</time>") {
 		t.Fatalf("status body missing never last_cycle_started_at for second spec: %q", body)
 	}
-	if !strings.Contains(body, "last_cycle_at=never") {
+	if !strings.Contains(body, "<code>/vol/eddie/spec.d/disabled.yaml</code>") {
 		t.Fatalf("status body missing never last_cycle_at for second spec: %q", body)
 	}
 }
@@ -280,5 +290,57 @@ func TestStatusRouteWithoutStatusProvider(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestStatusEventsRouteWithBasicAuth(t *testing.T) {
+	generatedAt := time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC)
+	server, err := New(
+		"0.0.0.0",
+		8080,
+		WithBasicAuth("admin", "secret"),
+		WithStatusSnapshot(func() StatusSnapshot {
+			return StatusSnapshot{
+				GeneratedAt: generatedAt,
+				Specs: []SpecStatus{{
+					Name:       "api-health",
+					SourcePath: "/vol/eddie/spec.d/api.yaml",
+				}},
+			}
+		}),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	noAuthReq := httptest.NewRequest(http.MethodGet, "/status/events", nil)
+	noAuthRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(noAuthRec, noAuthReq)
+	if noAuthRec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated status = %d, want %d", noAuthRec.Code, http.StatusUnauthorized)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	okReq := httptest.NewRequest(http.MethodGet, "/status/events", nil).WithContext(ctx)
+	okReq.SetBasicAuth("admin", "secret")
+	okRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(okRec, okReq)
+	if okRec.Code != http.StatusOK {
+		t.Fatalf("authenticated status = %d, want %d", okRec.Code, http.StatusOK)
+	}
+	contentType := okRec.Header().Get("Content-Type")
+	if !strings.Contains(contentType, "text/event-stream") {
+		t.Fatalf("content-type = %q, want to contain %q", contentType, "text/event-stream")
+	}
+	body := okRec.Body.String()
+	if !strings.Contains(body, "event: snapshot\n") {
+		t.Fatalf("events body missing snapshot event: %q", body)
+	}
+	if !strings.Contains(body, `"generated_at":"2026-02-27T18:00:00Z"`) {
+		t.Fatalf("events body missing generated_at: %q", body)
+	}
+	if !strings.Contains(body, `"name":"api-health"`) {
+		t.Fatalf("events body missing spec name: %q", body)
 	}
 }
