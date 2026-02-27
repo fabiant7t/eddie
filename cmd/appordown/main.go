@@ -13,6 +13,7 @@ import (
 	"github.com/fabiant7t/appordown/internal/config"
 	apphttp "github.com/fabiant7t/appordown/internal/http"
 	"github.com/fabiant7t/appordown/internal/mail"
+	"github.com/fabiant7t/appordown/internal/spec"
 )
 
 var (
@@ -68,6 +69,20 @@ func main() {
 		"receivers", cfg.Mailserver.Receivers,
 		"no_tls", cfg.Mailserver.NoTLS,
 	)
+
+	parsedSpecs, err := spec.Parse(cfg.SpecPath)
+	if err != nil {
+		slog.Error("failed to parse specs", "spec_path", cfg.SpecPath, "error", err)
+		os.Exit(1)
+	}
+	for _, parsedSpec := range parsedSpecs {
+		if parsedSpec.IsActive() {
+			slog.Debug("spec_parsed",
+				"name", parsedSpec.HTTP.Name,
+				"source", parsedSpec.SourcePath,
+			)
+		}
+	}
 
 	//Mail service
 	opts := []mail.Option{
