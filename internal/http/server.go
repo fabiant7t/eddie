@@ -7,6 +7,8 @@ import (
 	"net"
 	nethttp "net/http"
 	"strconv"
+	"strings"
+	"time"
 )
 
 // Server holds HTTP server settings.
@@ -16,11 +18,34 @@ type Server struct {
 	basicAuthUsername string
 	basicAuthPassword string
 	appVersion        string
+	statusSnapshotFn  StatusSnapshotFunc
 	httpServer        *nethttp.Server
 }
 
 // Option configures optional HTTP service settings.
 type Option func(*Server) error
+
+// StatusSnapshotFunc returns the latest status information for all specs.
+type StatusSnapshotFunc func() StatusSnapshot
+
+// StatusSnapshot is the data rendered by /status.
+type StatusSnapshot struct {
+	GeneratedAt time.Time
+	Specs       []SpecStatus
+}
+
+// SpecStatus is one spec row rendered by /status.
+type SpecStatus struct {
+	Name                 string
+	SourcePath           string
+	Disabled             bool
+	HasState             bool
+	Status               string
+	ConsecutiveFailures  int
+	ConsecutiveSuccesses int
+	LastCycleStartedAt   time.Time
+	LastCycleAt          time.Time
+}
 
 // New creates a new HTTP server with required network settings.
 func New(address string, port int, opts ...Option) (*Server, error) {
@@ -48,6 +73,7 @@ func New(address string, port int, opts ...Option) (*Server, error) {
 	mux := nethttp.NewServeMux()
 	mux.HandleFunc("/", server.rootHandler)
 	mux.HandleFunc("/healthz", server.healthzHandler)
+	mux.HandleFunc("/status", server.statusHandler)
 
 	server.httpServer = &nethttp.Server{
 		Addr:    net.JoinHostPort(server.address, strconv.Itoa(server.port)),
@@ -83,6 +109,17 @@ func WithAppVersion(appVersion string) Option {
 	}
 }
 
+// WithStatusSnapshot configures the status data provider used by /status.
+func WithStatusSnapshot(snapshotFn StatusSnapshotFunc) Option {
+	return func(s *Server) error {
+		if snapshotFn == nil {
+			return fmt.Errorf("status snapshot function is required")
+		}
+		s.statusSnapshotFn = snapshotFn
+		return nil
+	}
+}
+
 // Handler returns the configured HTTP handler.
 func (s *Server) Handler() nethttp.Handler {
 	return s.httpServer.Handler
@@ -104,13 +141,8 @@ func (s *Server) rootHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	if s.basicAuthUsername != "" {
-		username, password, ok := r.BasicAuth()
-		if !ok || username != s.basicAuthUsername || password != s.basicAuthPassword {
-			w.Header().Set("WWW-Authenticate", `Basic realm="eddie"`)
-			nethttp.Error(w, "unauthorized", nethttp.StatusUnauthorized)
-			return
-		}
+	if !s.requireBasicAuth(w, r) {
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -128,4 +160,75 @@ func (s *Server) healthzHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "pass",
 	})
+}
+
+func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
+	if r.URL.Path != "/status" {
+		nethttp.NotFound(w, r)
+		return
+	}
+	if !s.requireBasicAuth(w, r) {
+		return
+	}
+	if s.statusSnapshotFn == nil {
+		nethttp.Error(w, "status endpoint is not configured", nethttp.StatusServiceUnavailable)
+		return
+	}
+
+	snapshot := s.statusSnapshotFn()
+	if snapshot.GeneratedAt.IsZero() {
+		snapshot.GeneratedAt = time.Now().UTC()
+	}
+
+	var body strings.Builder
+	fmt.Fprintf(&body, "generated_at=%s\n", snapshot.GeneratedAt.UTC().Format(time.RFC3339Nano))
+	fmt.Fprintf(&body, "spec_count=%d\n", len(snapshot.Specs))
+	for _, specStatus := range snapshot.Specs {
+		lastCycleStarted := "never"
+		if specStatus.HasState && !specStatus.LastCycleStartedAt.IsZero() {
+			lastCycleStarted = specStatus.LastCycleStartedAt.UTC().Format(time.RFC3339Nano)
+		}
+		lastCycle := "never"
+		if specStatus.HasState && !specStatus.LastCycleAt.IsZero() {
+			lastCycle = specStatus.LastCycleAt.UTC().Format(time.RFC3339Nano)
+		}
+
+		status := specStatus.Status
+		if status == "" {
+			status = "unknown"
+		}
+
+		fmt.Fprintf(
+			&body,
+			"name=%s source=%s disabled=%t has_state=%t state=%s consecutive_failures=%d consecutive_successes=%d last_cycle_started_at=%s last_cycle_at=%s\n",
+			specStatus.Name,
+			specStatus.SourcePath,
+			specStatus.Disabled,
+			specStatus.HasState,
+			status,
+			specStatus.ConsecutiveFailures,
+			specStatus.ConsecutiveSuccesses,
+			lastCycleStarted,
+			lastCycle,
+		)
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(nethttp.StatusOK)
+	_, _ = w.Write([]byte(body.String()))
+}
+
+func (s *Server) requireBasicAuth(w nethttp.ResponseWriter, r *nethttp.Request) bool {
+	if s.basicAuthUsername == "" {
+		return true
+	}
+
+	username, password, ok := r.BasicAuth()
+	if ok && username == s.basicAuthUsername && password == s.basicAuthPassword {
+		return true
+	}
+
+	w.Header().Set("WWW-Authenticate", `Basic realm="eddie"`)
+	nethttp.Error(w, "unauthorized", nethttp.StatusUnauthorized)
+	return false
 }

@@ -8,6 +8,7 @@
 - Starts an HTTP server with:
   - `/` returning `eddie <version>` (optionally basic-auth protected)
   - `/healthz` returning `application/health+json`
+  - `/status` returning human-readable current spec states and last cycle started/completed times (basic-auth protected when configured)
 
 ## Build and Run
 

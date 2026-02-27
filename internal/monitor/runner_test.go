@@ -121,6 +121,7 @@ func TestHasStateChanged(t *testing.T) {
 		Status:               state.StatusHealthy,
 		ConsecutiveFailures:  1,
 		ConsecutiveSuccesses: 0,
+		LastCycleStartedAt:   time.Date(2026, 2, 27, 17, 59, 59, 0, time.UTC),
 		LastCycleAt:          time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC),
 	}
 
@@ -150,5 +151,11 @@ func TestHasStateChanged(t *testing.T) {
 	timestampOnlyChanged.LastCycleAt = base.LastCycleAt.Add(time.Second)
 	if hasStateChanged(base, timestampOnlyChanged) {
 		t.Fatalf("timestamp-only change should be ignored")
+	}
+
+	startTimestampOnlyChanged := base
+	startTimestampOnlyChanged.LastCycleStartedAt = base.LastCycleStartedAt.Add(time.Second)
+	if hasStateChanged(base, startTimestampOnlyChanged) {
+		t.Fatalf("start timestamp-only change should be ignored")
 	}
 }

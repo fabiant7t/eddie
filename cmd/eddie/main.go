@@ -96,6 +96,27 @@ func main() {
 	// HTTP server
 	httpOpts := []apphttp.Option{}
 	httpOpts = append(httpOpts, apphttp.WithAppVersion(version))
+	httpOpts = append(httpOpts, apphttp.WithStatusSnapshot(func() apphttp.StatusSnapshot {
+		snapshot := apphttp.StatusSnapshot{
+			GeneratedAt: time.Now().UTC(),
+			Specs:       make([]apphttp.SpecStatus, 0, len(parsedSpecs)),
+		}
+		for _, parsedSpec := range parsedSpecs {
+			specState, hasState := stateStore.Get(parsedSpec.HTTP.Name)
+			snapshot.Specs = append(snapshot.Specs, apphttp.SpecStatus{
+				Name:                 parsedSpec.HTTP.Name,
+				SourcePath:           parsedSpec.SourcePath,
+				Disabled:             !parsedSpec.IsActive(),
+				HasState:             hasState,
+				Status:               string(specState.Status),
+				ConsecutiveFailures:  specState.ConsecutiveFailures,
+				ConsecutiveSuccesses: specState.ConsecutiveSuccesses,
+				LastCycleStartedAt:   specState.LastCycleStartedAt,
+				LastCycleAt:          specState.LastCycleAt,
+			})
+		}
+		return snapshot
+	}))
 	if cfg.HTTPServer.BasicAuthUsername != "" || cfg.HTTPServer.BasicAuthPassword != "" {
 		httpOpts = append(httpOpts, apphttp.WithBasicAuth(
 			cfg.HTTPServer.BasicAuthUsername,

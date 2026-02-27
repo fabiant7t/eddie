@@ -18,6 +18,7 @@ type SpecState struct {
 	Status               Status
 	ConsecutiveFailures  int
 	ConsecutiveSuccesses int
+	LastCycleStartedAt   time.Time
 	LastCycleAt          time.Time
 }
 

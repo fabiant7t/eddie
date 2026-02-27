@@ -81,24 +81,35 @@ func (r *Runner) runCycle(ctx context.Context) {
 		go func() {
 			defer wg.Done()
 
+			cycleStartedAt := time.Now()
+			r.markCycleStarted(parsedSpec, cycleStartedAt)
 			checkErr := validateHTTPSpec(ctx, parsedSpec)
-			r.handleCycleResult(parsedSpec, checkErr)
+			r.handleCycleResult(parsedSpec, checkErr, cycleStartedAt)
 		}()
 	}
 	wg.Wait()
 }
 
-func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
+func (r *Runner) markCycleStarted(parsedSpec spec.Spec, cycleStartedAt time.Time) {
+	currentState, ok := r.stateStore.Get(parsedSpec.HTTP.Name)
+	if !ok {
+		currentState = state.SpecState{Status: state.StatusHealthy}
+	}
+	currentState.LastCycleStartedAt = cycleStartedAt
+	r.stateStore.Set(parsedSpec.HTTP.Name, currentState)
+}
+
+func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleStartedAt time.Time) {
 	failureThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Failure, 1)
 	successThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Success, 1)
-	cycleAt := time.Now()
+	cycleCompletedAt := time.Now()
 
 	currentState, ok := r.stateStore.Get(parsedSpec.HTTP.Name)
 	if !ok {
 		currentState = state.SpecState{Status: state.StatusHealthy}
 	}
 	previousState := currentState
-	currentState = resetStaleConsecutiveState(currentState, cycleAt, r.cycleInterval)
+	currentState = resetStaleConsecutiveState(currentState, cycleCompletedAt, r.cycleInterval)
 
 	nextState, transition := applyCycleResult(
 		currentState,
@@ -118,8 +129,28 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 			"to_consecutive_successes", nextState.ConsecutiveSuccesses,
 		)
 	}
-	nextState.LastCycleAt = cycleAt
+	nextState.LastCycleStartedAt = cycleStartedAt
+	nextState.LastCycleAt = cycleCompletedAt
 	r.stateStore.Set(parsedSpec.HTTP.Name, nextState)
+
+	if checkErr == nil {
+		slog.Debug("spec_ran",
+			"name", parsedSpec.HTTP.Name,
+			"source", parsedSpec.SourcePath,
+			"result", "success",
+			"cycle_started_at", cycleStartedAt,
+			"cycle_completed_at", cycleCompletedAt,
+		)
+	} else {
+		slog.Debug("spec_ran",
+			"name", parsedSpec.HTTP.Name,
+			"source", parsedSpec.SourcePath,
+			"result", "failure",
+			"cycle_started_at", cycleStartedAt,
+			"cycle_completed_at", cycleCompletedAt,
+			"error", checkErr,
+		)
+	}
 
 	switch transition {
 	case transitionFailure:
