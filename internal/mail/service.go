@@ -93,7 +93,7 @@ func WithNoTLS() Option {
 }
 
 // Send sends an email to a single recipient.
-func (s *Service) Send(ctx context.Context, recipient string, body []byte) error {
+func (s *Service) Send(ctx context.Context, recipient, subject, body string) error {
 	slog.Debug("sending email",
 		"endpoint", s.endpoint,
 		"port", s.port,
@@ -113,7 +113,11 @@ func (s *Service) Send(ctx context.Context, recipient string, body []byte) error
 		slog.Debug("failed to send email", "error", "recipient is required")
 		return fmt.Errorf("recipient is required")
 	}
-	if len(body) == 0 {
+	if subject == "" {
+		slog.Debug("failed to send email", "error", "subject is required")
+		return fmt.Errorf("subject is required")
+	}
+	if body == "" {
 		slog.Debug("failed to send email", "error", "body is required")
 		return fmt.Errorf("body is required")
 	}
@@ -202,7 +206,7 @@ func (s *Service) Send(ctx context.Context, recipient string, body []byte) error
 	}
 	defer writer.Close()
 
-	message := formatMessage(s.sender, recipient, body)
+	message := formatMessage(s.sender, recipient, subject, body)
 	if _, err := writer.Write(message); err != nil {
 		slog.Debug("failed to send email", "stage", "write", "error", err)
 		return fmt.Errorf("write email data failed: %w", err)
@@ -220,7 +224,7 @@ func (s *Service) Send(ctx context.Context, recipient string, body []byte) error
 	return nil
 }
 
-func formatMessage(sender, recipient string, body []byte) []byte {
+func formatMessage(sender, recipient, subject, body string) []byte {
 	var b strings.Builder
 	b.WriteString("From: ")
 	b.WriteString(sender)
@@ -228,10 +232,12 @@ func formatMessage(sender, recipient string, body []byte) []byte {
 	b.WriteString("To: ")
 	b.WriteString(recipient)
 	b.WriteString("\r\n")
-	b.WriteString("Subject: eddie notification\r\n")
+	b.WriteString("Subject: ")
+	b.WriteString(subject)
+	b.WriteString("\r\n")
 	b.WriteString("MIME-Version: 1.0\r\n")
 	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
 	b.WriteString("\r\n")
-	b.Write(body)
+	b.WriteString(body)
 	return []byte(b.String())
 }

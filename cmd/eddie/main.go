@@ -171,10 +171,9 @@ func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service,
 		return
 	}
 
-	subjectLine := "Subject: eddie spec parse failure"
+	subject := "eddie spec parse failure"
 	body := fmt.Sprintf(
-		"%s\r\n\r\nfailed to parse specs from %q\r\nerror: %v\r\n",
-		subjectLine,
+		"failed to parse specs from %q\r\nerror: %v\r\n",
 		cfg.SpecPath,
 		parseErr,
 	)
@@ -183,7 +182,7 @@ func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service,
 	defer cancel()
 
 	for _, recipient := range cfg.Mailserver.Receivers {
-		if err := mailService.Send(sendCtx, recipient, []byte(body)); err != nil {
+		if err := mailService.Send(sendCtx, recipient, subject, body); err != nil {
 			slog.Error("failed to send parse failure email", "recipient", recipient, "error", err)
 		}
 	}

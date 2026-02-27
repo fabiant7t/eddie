@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -106,17 +107,22 @@ func TestSendValidation(t *testing.T) {
 		t.Fatalf("New() error = %v", err)
 	}
 
-	err = svc.Send(nil, "ops@example.com", []byte("body"))
+	err = svc.Send(nil, "ops@example.com", "subject", "body")
 	if err == nil {
 		t.Fatalf("Send() nil context error = nil, want error")
 	}
 
-	err = svc.Send(context.Background(), "", []byte("body"))
+	err = svc.Send(context.Background(), "", "subject", "body")
 	if err == nil {
 		t.Fatalf("Send() empty recipient error = nil, want error")
 	}
 
-	err = svc.Send(context.Background(), "ops@example.com", nil)
+	err = svc.Send(context.Background(), "ops@example.com", "", "body")
+	if err == nil {
+		t.Fatalf("Send() empty subject error = nil, want error")
+	}
+
+	err = svc.Send(context.Background(), "ops@example.com", "subject", "")
 	if err == nil {
 		t.Fatalf("Send() empty body error = nil, want error")
 	}
@@ -131,8 +137,24 @@ func TestSendCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = svc.Send(ctx, "ops@example.com", []byte("body"))
+	err = svc.Send(ctx, "ops@example.com", "subject", "body")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Send() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestFormatMessageUsesProvidedSubject(t *testing.T) {
+	message := string(formatMessage(
+		"noreply@example.com",
+		"ops@example.com",
+		"eddie failure",
+		"body text",
+	))
+
+	if !strings.Contains(message, "Subject: eddie failure\r\n") {
+		t.Fatalf("message missing subject header: %q", message)
+	}
+	if !strings.Contains(message, "\r\n\r\nbody text") {
+		t.Fatalf("message missing body: %q", message)
 	}
 }

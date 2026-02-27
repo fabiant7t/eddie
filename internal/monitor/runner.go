@@ -321,15 +321,14 @@ func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := "Subject: eddie failure"
+	subject := fmt.Sprintf("eddie failure: %s", parsedSpec.HTTP.Name)
 	body := fmt.Sprintf(
-		"%s\r\n\r\nspec failed: %s\r\nsource: %s\r\nreason: %v\r\n",
-		subject,
+		"spec failed: %s\r\nsource: %s\r\nreason: %v\r\n",
 		parsedSpec.HTTP.Name,
 		parsedSpec.SourcePath,
 		failureErr,
 	)
-	r.sendEmailToAll(body)
+	r.sendEmailToAll(subject, body)
 }
 
 func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
@@ -340,22 +339,21 @@ func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := "Subject: eddie recovery"
+	subject := fmt.Sprintf("eddie recovery: %s", parsedSpec.HTTP.Name)
 	body := fmt.Sprintf(
-		"%s\r\n\r\nspec recovered: %s\r\nsource: %s\r\n",
-		subject,
+		"spec recovered: %s\r\nsource: %s\r\n",
 		parsedSpec.HTTP.Name,
 		parsedSpec.SourcePath,
 	)
-	r.sendEmailToAll(body)
+	r.sendEmailToAll(subject, body)
 }
 
-func (r *Runner) sendEmailToAll(body string) {
+func (r *Runner) sendEmailToAll(subject, body string) {
 	sendCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	for _, recipient := range r.mailRecipients {
-		if err := r.mailService.Send(sendCtx, recipient, []byte(body)); err != nil {
+		if err := r.mailService.Send(sendCtx, recipient, subject, body); err != nil {
 			slog.Error("failed to send monitor email", "recipient", recipient, "error", err)
 		}
 	}
