@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/smtp"
 	"strconv"
@@ -93,16 +94,27 @@ func WithNoTLS() Option {
 
 // Send sends an email to a single recipient.
 func (s *Service) Send(ctx context.Context, recipient string, body []byte) error {
+	slog.Debug("sending email",
+		"endpoint", s.endpoint,
+		"port", s.port,
+		"recipient", recipient,
+		"sender", s.sender,
+	)
+
 	if ctx == nil {
+		slog.Debug("failed to send email", "error", "context is required")
 		return fmt.Errorf("context is required")
 	}
 	if err := ctx.Err(); err != nil {
+		slog.Debug("failed to send email", "error", err)
 		return err
 	}
 	if recipient == "" {
+		slog.Debug("failed to send email", "error", "recipient is required")
 		return fmt.Errorf("recipient is required")
 	}
 	if len(body) == 0 {
+		slog.Debug("failed to send email", "error", "body is required")
 		return fmt.Errorf("body is required")
 	}
 
@@ -110,6 +122,7 @@ func (s *Service) Send(ctx context.Context, recipient string, body []byte) error
 	dialer := &net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "tcp", serverAddress)
 	if err != nil {
+		slog.Debug("failed to send email", "stage", "dial", "error", err)
 		return fmt.Errorf("dial smtp server: %w", err)
 	}
 	defer conn.Close()
@@ -128,53 +141,82 @@ func (s *Service) Send(ctx context.Context, recipient string, body []byte) error
 	}()
 	defer close(done)
 
-	client, err := smtp.NewClient(conn, s.endpoint)
-	if err != nil {
-		return fmt.Errorf("create smtp client: %w", err)
+	useImplicitTLS := !s.noTLS && s.port == 465
+	var client *smtp.Client
+	if useImplicitTLS {
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName: s.endpoint,
+			MinVersion: tls.VersionTLS12,
+		})
+		if err := tlsConn.HandshakeContext(ctx); err != nil {
+			slog.Debug("failed to send email", "stage", "implicit_tls_handshake", "error", err)
+			return fmt.Errorf("implicit tls handshake failed: %w", err)
+		}
+		client, err = smtp.NewClient(tlsConn, s.endpoint)
+		if err != nil {
+			slog.Debug("failed to send email", "stage", "smtp_client_tls", "error", err)
+			return fmt.Errorf("create smtp client over tls: %w", err)
+		}
+	} else {
+		client, err = smtp.NewClient(conn, s.endpoint)
+		if err != nil {
+			slog.Debug("failed to send email", "stage", "smtp_client", "error", err)
+			return fmt.Errorf("create smtp client: %w", err)
+		}
 	}
 	defer client.Close()
 
-	if !s.noTLS {
+	if !s.noTLS && !useImplicitTLS {
 		if ok, _ := client.Extension("STARTTLS"); !ok {
+			slog.Debug("failed to send email", "stage", "starttls_extension", "error", "smtp server does not support STARTTLS")
 			return fmt.Errorf("smtp server does not support STARTTLS")
 		}
 		if err := client.StartTLS(&tls.Config{
 			ServerName: s.endpoint,
 			MinVersion: tls.VersionTLS12,
 		}); err != nil {
+			slog.Debug("failed to send email", "stage", "starttls", "error", err)
 			return fmt.Errorf("starttls failed: %w", err)
 		}
 	}
 
 	auth := smtp.PlainAuth("", s.username, s.password, s.endpoint)
 	if err := client.Auth(auth); err != nil {
+		slog.Debug("failed to send email", "stage", "auth", "error", err)
 		return fmt.Errorf("smtp auth failed: %w", err)
 	}
 
 	if err := client.Mail(s.sender); err != nil {
+		slog.Debug("failed to send email", "stage", "mail_from", "error", err)
 		return fmt.Errorf("set sender failed: %w", err)
 	}
 	if err := client.Rcpt(recipient); err != nil {
+		slog.Debug("failed to send email", "stage", "rcpt_to", "error", err)
 		return fmt.Errorf("set recipient failed: %w", err)
 	}
 
 	writer, err := client.Data()
 	if err != nil {
+		slog.Debug("failed to send email", "stage", "data", "error", err)
 		return fmt.Errorf("open email data writer failed: %w", err)
 	}
 	defer writer.Close()
 
 	message := formatMessage(s.sender, recipient, body)
 	if _, err := writer.Write(message); err != nil {
+		slog.Debug("failed to send email", "stage", "write", "error", err)
 		return fmt.Errorf("write email data failed: %w", err)
 	}
 	if err := writer.Close(); err != nil {
+		slog.Debug("failed to send email", "stage", "data_close", "error", err)
 		return fmt.Errorf("close email data writer failed: %w", err)
 	}
 
 	if err := client.Quit(); err != nil {
+		slog.Debug("failed to send email", "stage", "quit", "error", err)
 		return fmt.Errorf("smtp quit failed: %w", err)
 	}
+	slog.Debug("email_sent", "recipient", recipient, "endpoint", s.endpoint, "port", s.port)
 	return nil
 }
 

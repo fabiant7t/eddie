@@ -11,6 +11,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-default")
 	t.Setenv(envConfigPath, "")
 	t.Setenv(envCycleInterval, "")
+	t.Setenv(envLogLevel, "")
 	t.Setenv(envHTTPAddress, "")
 	t.Setenv(envHTTPPort, "")
 	t.Setenv(envHTTPBasicUser, "")
@@ -30,6 +31,9 @@ func TestLoadDefaults(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.LogLevel != "INFO" {
+		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "INFO")
 	}
 	wantConfigPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir)
 	if cfg.ConfigurationPath != wantConfigPath {
@@ -53,6 +57,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-env")
 	t.Setenv(envConfigPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
 	t.Setenv(envHTTPBasicUser, "admin")
@@ -72,6 +77,9 @@ func TestLoadFromEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.LogLevel != "DEBUG" {
+		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "DEBUG")
 	}
 	if cfg.ConfigurationPath != "/etc/appordown/config.d" {
 		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/etc/appordown/config.d")
@@ -116,6 +124,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-cli")
 	t.Setenv(envConfigPath, "/etc/appordown/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
 	t.Setenv(envHTTPBasicUser, "admin")
@@ -131,6 +140,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	cfg, err := Load([]string{
 		"--config-path=/opt/appordown/config.d",
 		"--cycle-interval=60s",
+		"--log-level=warn",
 		"--http-address=0.0.0.0",
 		"--http-port=8088",
 		"--http-basic-auth-username=cli-admin",
@@ -150,6 +160,9 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.LogLevel != "WARN" {
+		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "WARN")
 	}
 	if cfg.ConfigurationPath != "/opt/appordown/config.d" {
 		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/opt/appordown/config.d")
@@ -205,6 +218,27 @@ func TestLoadFormatEquivalence(t *testing.T) {
 
 	if cfgA.CycleInterval != cfgB.CycleInterval {
 		t.Fatalf("60s parsed as %v, 1m parsed as %v; want equal", cfgA.CycleInterval, cfgB.CycleInterval)
+	}
+}
+
+func TestLoadRejectsInvalidLogLevel(t *testing.T) {
+	t.Setenv(envLogLevel, "verbose")
+	_, err := Load(nil)
+	if err == nil {
+		t.Fatalf("Load() error = nil, want error")
+	}
+}
+
+func TestLoadFromAltLogLevelEnv(t *testing.T) {
+	t.Setenv(envLogLevel, "")
+	t.Setenv(envLogLevelAlt, "debug")
+
+	cfg, err := Load(nil)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.LogLevel != "DEBUG" {
+		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "DEBUG")
 	}
 }
 

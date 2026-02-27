@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,9 @@ import (
 const (
 	defaultCycleInterval = 60 * time.Second
 	envCycleInterval     = "APPORDOWN_CYCLE_INTERVAL"
+	defaultLogLevel      = "INFO"
+	envLogLevel          = "APPORDOWN_LOG_LEVEL"
+	envLogLevelAlt       = "APPORDOWN_LOGLEVEL"
 	defaultConfigDir     = "config.d"
 	envConfigPath        = "APPORDOWN_CONFIG_PATH"
 	defaultHTTPPort      = 8080
@@ -35,6 +39,7 @@ const (
 type Configuration struct {
 	ConfigurationPath string
 	CycleInterval     time.Duration
+	LogLevel          string
 	HTTPServer        HTTPServerConfiguration
 	Mailserver        MailserverConfiguration
 }
@@ -49,13 +54,13 @@ type HTTPServerConfiguration struct {
 
 // MailserverConfiguration holds SMTP settings.
 type MailserverConfiguration struct {
-	Endpoint string
-	Port     int
-	Username string
-	Password string
-	Sender   string
+	Endpoint  string
+	Port      int
+	Username  string
+	Password  string
+	Sender    string
 	Receivers []string
-	NoTLS    bool
+	NoTLS     bool
 }
 
 // Load parses configuration from environment and CLI args.
@@ -68,7 +73,8 @@ func Load(args []string) (Configuration, error) {
 
 	cfg := Configuration{
 		ConfigurationPath: defaultConfigurationPath,
-		CycleInterval: defaultCycleInterval,
+		CycleInterval:     defaultCycleInterval,
+		LogLevel:          defaultLogLevel,
 		HTTPServer: HTTPServerConfiguration{
 			Address: defaultHTTPAddress,
 			Port:    defaultHTTPPort,
@@ -87,6 +93,11 @@ func Load(args []string) (Configuration, error) {
 			return Configuration{}, fmt.Errorf("invalid %s: %w", envCycleInterval, err)
 		}
 		cfg.CycleInterval = d
+	}
+	if raw := os.Getenv(envLogLevel); raw != "" {
+		cfg.LogLevel = raw
+	} else if raw := os.Getenv(envLogLevelAlt); raw != "" {
+		cfg.LogLevel = raw
 	}
 	if raw := os.Getenv(envHTTPAddress); raw != "" {
 		cfg.HTTPServer.Address = raw
@@ -139,6 +150,7 @@ func Load(args []string) (Configuration, error) {
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&cfg.ConfigurationPath, "config-path", cfg.ConfigurationPath, "configuration path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
+	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (DEBUG, INFO, WARN, ERROR)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
 	fs.IntVar(&cfg.HTTPServer.Port, "http-port", cfg.HTTPServer.Port, "http server listen port")
 	fs.StringVar(&cfg.HTTPServer.BasicAuthUsername, "http-basic-auth-username", cfg.HTTPServer.BasicAuthUsername, "http basic auth username")
@@ -153,8 +165,38 @@ func Load(args []string) (Configuration, error) {
 	if err := fs.Parse(args); err != nil {
 		return Configuration{}, err
 	}
+	logLevel, err := normalizeLogLevel(cfg.LogLevel)
+	if err != nil {
+		return Configuration{}, fmt.Errorf("invalid %s: %w", envLogLevel, err)
+	}
+	cfg.LogLevel = logLevel
 
 	return cfg, nil
+}
+
+func normalizeLogLevel(raw string) (string, error) {
+	level := strings.ToUpper(strings.TrimSpace(raw))
+	switch level {
+	case "DEBUG", "INFO", "WARN", "ERROR":
+		return level, nil
+	default:
+		return "", fmt.Errorf("unsupported log level %q", raw)
+	}
+}
+
+func ParseSlogLevel(logLevel string) (slog.Level, error) {
+	switch strings.ToUpper(strings.TrimSpace(logLevel)) {
+	case "DEBUG":
+		return slog.LevelDebug, nil
+	case "INFO":
+		return slog.LevelInfo, nil
+	case "WARN":
+		return slog.LevelWarn, nil
+	case "ERROR":
+		return slog.LevelError, nil
+	default:
+		return 0, fmt.Errorf("unsupported log level %q", logLevel)
+	}
 }
 
 func resolveDefaultConfigurationPath() (string, error) {

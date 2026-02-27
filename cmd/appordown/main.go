@@ -25,6 +25,21 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	cfg, err := config.Load(os.Args[1:])
+	if err != nil {
+		slog.Error("failed to load configuration", "error", err)
+		os.Exit(1)
+	}
+
+	logLevel, err := config.ParseSlogLevel(cfg.LogLevel)
+	if err != nil {
+		slog.Error("failed to parse log level", "error", err)
+		os.Exit(1)
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: logLevel,
+	})))
+
 	// App information
 	slog.Info("build",
 		"version", version,
@@ -32,16 +47,11 @@ func main() {
 		"revision", revision,
 	)
 
-	// Configuration
-	cfg, err := config.Load(os.Args[1:])
-	if err != nil {
-		slog.Error("failed to load configuration", "error", err)
-		os.Exit(1)
-	}
 	// Configuration information
 	slog.Info("config",
 		"configuration_path", cfg.ConfigurationPath,
 		"cycle_interval", cfg.CycleInterval.String(),
+		"log_level", cfg.LogLevel,
 	)
 	slog.Info("config.http",
 		"address", cfg.HTTPServer.Address,
