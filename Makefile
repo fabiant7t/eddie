@@ -1,5 +1,5 @@
 APP_NAME := appordown
-VERSION ?= dev
+VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo dev)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 REVISION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 

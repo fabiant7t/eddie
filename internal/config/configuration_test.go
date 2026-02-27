@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -209,77 +208,15 @@ func TestLoadFormatEquivalence(t *testing.T) {
 	}
 }
 
-func TestLoadConfigPathExpandsHome(t *testing.T) {
-	t.Setenv("HOME", "/tmp/appordown-home")
-	t.Setenv(envConfigPath, "~/config.d")
+func TestLoadConfigPathAcceptsGlobAsString(t *testing.T) {
+	t.Setenv(envConfigPath, "conf.d/*.yaml")
 
 	cfg, err := Load(nil)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	want := filepath.Join("/tmp/appordown-home", "config.d")
-	if cfg.ConfigurationPath != want {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, want)
-	}
-}
-
-func TestLoadConfigPathResolvesRelative(t *testing.T) {
-	t.Setenv(envConfigPath, "./config.d")
-
-	cfg, err := Load(nil)
-	if err != nil {
-		t.Fatalf("Load() error = %v", err)
-	}
-
-	want, err := filepath.Abs("./config.d")
-	if err != nil {
-		t.Fatalf("filepath.Abs() error = %v", err)
-	}
-	if cfg.ConfigurationPath != filepath.Clean(want) {
-		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, filepath.Clean(want))
-	}
-}
-
-func TestLoadConfigPathRejectsGlob(t *testing.T) {
-	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
-
-	_, err := Load(nil)
-	if err == nil {
-		t.Fatalf("Load() error = nil, want error")
-	}
-}
-
-func TestNormalizeConfigurationPathRejectsEmpty(t *testing.T) {
-	_, err := normalizeConfigurationPath("   ")
-	if err == nil {
-		t.Fatalf("normalizeConfigurationPath() error = nil, want error")
-	}
-}
-
-func TestNormalizeConfigurationPathRejectsUnsupportedHomeExpansion(t *testing.T) {
-	_, err := normalizeConfigurationPath("~other/config.d")
-	if err == nil {
-		t.Fatalf("normalizeConfigurationPath() error = nil, want error")
-	}
-}
-
-func TestNormalizeConfigurationPathFromDefaultIsAbsolute(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-abs")
-
-	path, err := resolveDefaultConfigurationPath()
-	if err != nil {
-		t.Fatalf("resolveDefaultConfigurationPath() error = %v", err)
-	}
-
-	normalized, err := normalizeConfigurationPath(path)
-	if err != nil {
-		t.Fatalf("normalizeConfigurationPath() error = %v", err)
-	}
-	if !filepath.IsAbs(normalized) {
-		t.Fatalf("normalized path = %q, want absolute", normalized)
-	}
-	if _, err := os.Stat(filepath.Dir(normalized)); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("unexpected stat error = %v", err)
+	if cfg.ConfigurationPath != "conf.d/*.yaml" {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "conf.d/*.yaml")
 	}
 }

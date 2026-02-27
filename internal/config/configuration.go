@@ -137,7 +137,7 @@ func Load(args []string) (Configuration, error) {
 
 	fs := flag.NewFlagSet("appordown", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	fs.StringVar(&cfg.ConfigurationPath, "config-path", cfg.ConfigurationPath, "absolute path to configuration directory")
+	fs.StringVar(&cfg.ConfigurationPath, "config-path", cfg.ConfigurationPath, "configuration path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
 	fs.IntVar(&cfg.HTTPServer.Port, "http-port", cfg.HTTPServer.Port, "http server listen port")
@@ -153,10 +153,6 @@ func Load(args []string) (Configuration, error) {
 	if err := fs.Parse(args); err != nil {
 		return Configuration{}, err
 	}
-	cfg.ConfigurationPath, err = normalizeConfigurationPath(cfg.ConfigurationPath)
-	if err != nil {
-		return Configuration{}, fmt.Errorf("invalid %s: %w", envConfigPath, err)
-	}
 
 	return cfg, nil
 }
@@ -169,38 +165,6 @@ func resolveDefaultConfigurationPath() (string, error) {
 
 	return filepath.Join(baseConfigDir, "appordown", defaultConfigDir), nil
 }
-
-func normalizeConfigurationPath(raw string) (string, error) {
-	path := strings.TrimSpace(raw)
-	if path == "" {
-		return "", fmt.Errorf("path cannot be empty")
-	}
-
-	if path == "~" || strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve user home dir: %w", err)
-		}
-		path = filepath.Join(homeDir, strings.TrimPrefix(strings.TrimPrefix(path, "~/"), "~\\"))
-	} else if strings.HasPrefix(path, "~") {
-		return "", fmt.Errorf("unsupported home expansion for %q", path)
-	}
-
-	if strings.ContainsAny(path, "*?[") {
-		return "", fmt.Errorf("glob patterns are not allowed in configuration directory path")
-	}
-
-	if !filepath.IsAbs(path) {
-		absolutePath, err := filepath.Abs(path)
-		if err != nil {
-			return "", fmt.Errorf("resolve absolute path: %w", err)
-		}
-		path = absolutePath
-	}
-
-	return filepath.Clean(path), nil
-}
-
 func parseCSVList(raw string) []string {
 	parts := strings.Split(raw, ",")
 	values := make([]string, 0, len(parts))

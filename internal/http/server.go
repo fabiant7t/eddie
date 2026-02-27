@@ -114,7 +114,7 @@ func (s *Server) rootHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	_, _ = w.Write([]byte(fmt.Sprintf("app or down [%s]", s.appVersion)))
+	_, _ = w.Write([]byte(fmt.Sprintf("app or down %s", s.appVersion)))
 }
 
 func (s *Server) healthzHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
