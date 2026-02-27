@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	nethttp "net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fabiant7t/appordown/internal/config"
 	apphttp "github.com/fabiant7t/appordown/internal/http"
@@ -81,6 +84,7 @@ func main() {
 
 	// HTTP server
 	httpOpts := []apphttp.Option{}
+	httpOpts = append(httpOpts, apphttp.WithAppVersion(version))
 	if cfg.HTTPServer.BasicAuthUsername != "" || cfg.HTTPServer.BasicAuthPassword != "" {
 		httpOpts = append(httpOpts, apphttp.WithBasicAuth(
 			cfg.HTTPServer.BasicAuthUsername,
@@ -92,10 +96,30 @@ func main() {
 		slog.Error("failed to initialize http server", "error", err)
 		os.Exit(1)
 	}
-	_ = httpServer
 	slog.Info("service running", "message", "press Ctrl+C to stop")
-	<-ctx.Done()
-	slog.Info("shutdown signal received", "error", ctx.Err())
+
+	serverErrCh := make(chan error, 1)
+	go func() {
+		serverErrCh <- httpServer.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		slog.Info("shutdown signal received", "error", ctx.Err())
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			slog.Error("failed to shutdown http server", "error", err)
+			os.Exit(1)
+		}
+	case err := <-serverErrCh:
+		if err != nil && !errors.Is(err, nethttp.ErrServerClosed) {
+			slog.Error("http server exited with error", "error", err)
+			os.Exit(1)
+		}
+	}
 }
 
 func redact(value string) string {
