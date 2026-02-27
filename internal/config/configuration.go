@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,7 @@ const (
 	envMailUsername      = "APPORDOWN_MAIL_USERNAME"
 	envMailPassword      = "APPORDOWN_MAIL_PASSWORD"
 	envMailSender        = "APPORDOWN_MAIL_SENDER"
+	envMailReceivers     = "APPORDOWN_MAIL_RECEIVERS"
 	envMailNoTLS         = "APPORDOWN_MAIL_NO_TLS"
 )
 
@@ -53,6 +55,7 @@ type MailserverConfiguration struct {
 	Username string
 	Password string
 	Sender   string
+	Receivers []string
 	NoTLS    bool
 }
 
@@ -122,6 +125,9 @@ func Load(args []string) (Configuration, error) {
 	if raw := os.Getenv(envMailSender); raw != "" {
 		cfg.Mailserver.Sender = raw
 	}
+	if raw := os.Getenv(envMailReceivers); raw != "" {
+		cfg.Mailserver.Receivers = parseCSVList(raw)
+	}
 	if raw := os.Getenv(envMailNoTLS); raw != "" {
 		noTLS, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -143,6 +149,7 @@ func Load(args []string) (Configuration, error) {
 	fs.StringVar(&cfg.Mailserver.Username, "mail-username", cfg.Mailserver.Username, "mail server username")
 	fs.StringVar(&cfg.Mailserver.Password, "mail-password", cfg.Mailserver.Password, "mail server password")
 	fs.StringVar(&cfg.Mailserver.Sender, "mail-sender", cfg.Mailserver.Sender, "mail sender address")
+	fs.Var(newStringSliceFlag(&cfg.Mailserver.Receivers), "mail-receiver", "mail receiver address (repeatable)")
 	fs.BoolVar(&cfg.Mailserver.NoTLS, "mail-no-tls", cfg.Mailserver.NoTLS, "disable TLS for mail server")
 	if err := fs.Parse(args); err != nil {
 		return Configuration{}, err
@@ -158,4 +165,44 @@ func resolveDefaultConfigurationPath() (string, error) {
 	}
 
 	return filepath.Join(baseConfigDir, "appordown", defaultConfigDir, defaultConfigPattern), nil
+}
+
+func parseCSVList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		values = append(values, trimmed)
+	}
+	return values
+}
+
+type stringSliceFlag struct {
+	target  *[]string
+	changed bool
+}
+
+func newStringSliceFlag(target *[]string) *stringSliceFlag {
+	return &stringSliceFlag{target: target}
+}
+
+func (f *stringSliceFlag) String() string {
+	return strings.Join(*f.target, ",")
+}
+
+func (f *stringSliceFlag) Set(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("mail receiver cannot be empty")
+	}
+
+	if !f.changed {
+		*f.target = nil
+		f.changed = true
+	}
+	*f.target = append(*f.target, trimmed)
+	return nil
 }

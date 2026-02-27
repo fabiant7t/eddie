@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -19,6 +20,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv(envMailUsername, "")
 	t.Setenv(envMailPassword, "")
 	t.Setenv(envMailSender, "")
+	t.Setenv(envMailReceivers, "")
 	t.Setenv(envMailNoTLS, "")
 
 	cfg, err := Load(nil)
@@ -42,6 +44,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Mailserver.Port != defaultMailPort {
 		t.Fatalf("Mailserver.Port = %v, want %v", cfg.Mailserver.Port, defaultMailPort)
 	}
+	if len(cfg.Mailserver.Receivers) != 0 {
+		t.Fatalf("Mailserver.Receivers = %v, want empty", cfg.Mailserver.Receivers)
+	}
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -57,6 +62,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv(envMailUsername, "alice")
 	t.Setenv(envMailPassword, "secret")
 	t.Setenv(envMailSender, "noreply@example.com")
+	t.Setenv(envMailReceivers, "ops@example.com, alerts@example.com, , oncall@example.com")
 	t.Setenv(envMailNoTLS, "true")
 
 	cfg, err := Load(nil)
@@ -97,6 +103,10 @@ func TestLoadFromEnv(t *testing.T) {
 	if cfg.Mailserver.Sender != "noreply@example.com" {
 		t.Fatalf("Mailserver.Sender = %q, want %q", cfg.Mailserver.Sender, "noreply@example.com")
 	}
+	wantReceivers := []string{"ops@example.com", "alerts@example.com", "oncall@example.com"}
+	if !reflect.DeepEqual(cfg.Mailserver.Receivers, wantReceivers) {
+		t.Fatalf("Mailserver.Receivers = %v, want %v", cfg.Mailserver.Receivers, wantReceivers)
+	}
 	if cfg.Mailserver.NoTLS != true {
 		t.Fatalf("Mailserver.NoTLS = %v, want %v", cfg.Mailserver.NoTLS, true)
 	}
@@ -115,6 +125,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailUsername, "alice")
 	t.Setenv(envMailPassword, "secret")
 	t.Setenv(envMailSender, "noreply@example.com")
+	t.Setenv(envMailReceivers, "ops@example.com,alerts@example.com")
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
@@ -129,6 +140,8 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 		"--mail-username=bob",
 		"--mail-password=override",
 		"--mail-sender=alerts@example.com",
+		"--mail-receiver=security@example.com",
+		"--mail-receiver=incident@example.com",
 		"--mail-no-tls=true",
 	})
 	if err != nil {
@@ -167,6 +180,10 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	}
 	if cfg.Mailserver.Sender != "alerts@example.com" {
 		t.Fatalf("Mailserver.Sender = %q, want %q", cfg.Mailserver.Sender, "alerts@example.com")
+	}
+	wantReceivers := []string{"security@example.com", "incident@example.com"}
+	if !reflect.DeepEqual(cfg.Mailserver.Receivers, wantReceivers) {
+		t.Fatalf("Mailserver.Receivers = %v, want %v", cfg.Mailserver.Receivers, wantReceivers)
 	}
 	if cfg.Mailserver.NoTLS != true {
 		t.Fatalf("Mailserver.NoTLS = %v, want %v", cfg.Mailserver.NoTLS, true)
