@@ -83,6 +83,9 @@ func Parse(pathExpression string) ([]Spec, error) {
 		}
 		specs = append(specs, fileSpecs...)
 	}
+	if err := validateSpecNames(specs); err != nil {
+		return nil, err
+	}
 
 	return specs, nil
 }
@@ -182,4 +185,21 @@ func isEmptyYAMLDocument(doc *yaml.Node) bool {
 	}
 
 	return false
+}
+
+func validateSpecNames(specs []Spec) error {
+	seen := make(map[string]string, len(specs))
+	for _, sp := range specs {
+		name := strings.TrimSpace(sp.HTTP.Name)
+		if name == "" {
+			return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
+		}
+
+		if firstSource, ok := seen[name]; ok {
+			return fmt.Errorf("duplicate spec name %q found in %q and %q", name, firstSource, sp.SourcePath)
+		}
+		seen[name] = sp.SourcePath
+	}
+
+	return nil
 }
