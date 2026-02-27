@@ -9,7 +9,19 @@ import (
 	"github.com/fabiant7t/appordown/internal/mail"
 )
 
+var (
+	version  = "dev"
+	date     string
+	revision string
+)
+
 func main() {
+	slog.Info("build",
+		"version", version,
+		"date", date,
+		"revision", revision,
+	)
+
 	cfg, err := config.Load(os.Args[1:])
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
