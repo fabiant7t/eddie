@@ -1,11 +1,14 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestLoadDefaults(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-default")
+	t.Setenv(envConfigPath, "")
 	t.Setenv(envCycleInterval, "")
 	t.Setenv(envHTTPAddress, "")
 	t.Setenv(envHTTPPort, "")
@@ -26,6 +29,10 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
 	}
+	wantConfigPath := filepath.Join("/tmp/appordown-xdg-default", "appordown", defaultConfigDir, defaultConfigPattern)
+	if cfg.ConfigurationPath != wantConfigPath {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, wantConfigPath)
+	}
 	if cfg.HTTPServer.Address != defaultHTTPAddress {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, defaultHTTPAddress)
 	}
@@ -38,6 +45,8 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadFromEnv(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-env")
+	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -57,6 +66,9 @@ func TestLoadFromEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.ConfigurationPath != "/etc/appordown/config.d/*.yaml" {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/etc/appordown/config.d/*.yaml")
 	}
 	if cfg.HTTPServer.Address != "127.0.0.1" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "127.0.0.1")
@@ -91,6 +103,8 @@ func TestLoadFromEnv(t *testing.T) {
 }
 
 func TestLoadCLIOverridesEnv(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-cli")
+	t.Setenv(envConfigPath, "/etc/appordown/config.d/*.yaml")
 	t.Setenv(envCycleInterval, "1m")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -104,6 +118,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv(envMailNoTLS, "false")
 
 	cfg, err := Load([]string{
+		"--config-path=/opt/appordown/config.d/*.yaml",
 		"--cycle-interval=60s",
 		"--http-address=0.0.0.0",
 		"--http-port=8088",
@@ -122,6 +137,9 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.ConfigurationPath != "/opt/appordown/config.d/*.yaml" {
+		t.Fatalf("ConfigurationPath = %q, want %q", cfg.ConfigurationPath, "/opt/appordown/config.d/*.yaml")
 	}
 	if cfg.HTTPServer.Address != "0.0.0.0" {
 		t.Fatalf("HTTPServer.Address = %q, want %q", cfg.HTTPServer.Address, "0.0.0.0")
@@ -156,6 +174,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 }
 
 func TestLoadFormatEquivalence(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/tmp/appordown-xdg-format")
 	t.Setenv(envCycleInterval, "")
 
 	cfgA, err := Load([]string{"--cycle-interval=60s"})

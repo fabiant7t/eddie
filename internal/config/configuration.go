@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -11,6 +12,9 @@ import (
 const (
 	defaultCycleInterval = 60 * time.Second
 	envCycleInterval     = "APPORDOWN_CYCLE_INTERVAL"
+	defaultConfigDir     = "config.d"
+	defaultConfigPattern = "*.yaml"
+	envConfigPath        = "APPORDOWN_CONFIG_PATH"
 	defaultHTTPPort      = 8080
 	defaultHTTPAddress   = "0.0.0.0"
 	envHTTPAddress       = "APPORDOWN_HTTP_ADDRESS"
@@ -28,9 +32,10 @@ const (
 
 // Configuration holds runtime settings for the app.
 type Configuration struct {
-	CycleInterval time.Duration
-	HTTPServer    HTTPServerConfiguration
-	Mailserver    MailserverConfiguration
+	ConfigurationPath string
+	CycleInterval     time.Duration
+	HTTPServer        HTTPServerConfiguration
+	Mailserver        MailserverConfiguration
 }
 
 // HTTPServerConfiguration holds HTTP server settings.
@@ -54,7 +59,13 @@ type MailserverConfiguration struct {
 // Load parses configuration from environment and CLI args.
 // Precedence is: CLI argument, environment, default.
 func Load(args []string) (Configuration, error) {
+	defaultConfigurationPath, err := resolveDefaultConfigurationPath()
+	if err != nil {
+		return Configuration{}, err
+	}
+
 	cfg := Configuration{
+		ConfigurationPath: defaultConfigurationPath,
 		CycleInterval: defaultCycleInterval,
 		HTTPServer: HTTPServerConfiguration{
 			Address: defaultHTTPAddress,
@@ -65,6 +76,9 @@ func Load(args []string) (Configuration, error) {
 		},
 	}
 
+	if raw := os.Getenv(envConfigPath); raw != "" {
+		cfg.ConfigurationPath = raw
+	}
 	if raw := os.Getenv(envCycleInterval); raw != "" {
 		d, err := time.ParseDuration(raw)
 		if err != nil {
@@ -118,6 +132,7 @@ func Load(args []string) (Configuration, error) {
 
 	fs := flag.NewFlagSet("appordown", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
+	fs.StringVar(&cfg.ConfigurationPath, "config-path", cfg.ConfigurationPath, "path or glob for configuration files")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
 	fs.IntVar(&cfg.HTTPServer.Port, "http-port", cfg.HTTPServer.Port, "http server listen port")
@@ -134,4 +149,13 @@ func Load(args []string) (Configuration, error) {
 	}
 
 	return cfg, nil
+}
+
+func resolveDefaultConfigurationPath() (string, error) {
+	baseConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve user config dir: %w", err)
+	}
+
+	return filepath.Join(baseConfigDir, "appordown", defaultConfigDir, defaultConfigPattern), nil
 }
