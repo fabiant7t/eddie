@@ -13,6 +13,7 @@ help:
 	@echo "Targets:"
 	@echo "  build    Build $(APP_NAME) with embedded version metadata"
 	@echo "  run      Build and run $(APP_NAME)"
+	@echo "  release  Build and publish a release via goreleaser"
 
 .PHONY: build
 build:
@@ -24,3 +25,7 @@ build:
 .PHONY: run
 run: build
 	./$(APP_NAME)
+
+.PHONY: release
+release:
+	goreleaser release --clean
