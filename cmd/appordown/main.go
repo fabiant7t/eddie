@@ -16,17 +16,20 @@ var (
 )
 
 func main() {
+	// App information
 	slog.Info("build",
 		"version", version,
 		"date", date,
 		"revision", revision,
 	)
 
+	// Configuration
 	cfg, err := config.Load(os.Args[1:])
 	if err != nil {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
+	// Configuration information
 	slog.Info("config",
 		"configuration_path", cfg.ConfigurationPath,
 		"cycle_interval", cfg.CycleInterval.String(),
@@ -47,6 +50,7 @@ func main() {
 		"no_tls", cfg.Mailserver.NoTLS,
 	)
 
+	//Mail service
 	opts := []mail.Option{
 		mail.WithPort(cfg.Mailserver.Port),
 	}
@@ -69,6 +73,7 @@ func main() {
 	}
 	_ = mailService
 
+	// HTTP server
 	httpOpts := []apphttp.Option{}
 	if cfg.HTTPServer.BasicAuthUsername != "" || cfg.HTTPServer.BasicAuthPassword != "" {
 		httpOpts = append(httpOpts, apphttp.WithBasicAuth(
@@ -76,7 +81,6 @@ func main() {
 			cfg.HTTPServer.BasicAuthPassword,
 		))
 	}
-
 	httpServer, err := apphttp.New(cfg.HTTPServer.Address, cfg.HTTPServer.Port, httpOpts...)
 	if err != nil {
 		slog.Error("failed to initialize http server", "error", err)
