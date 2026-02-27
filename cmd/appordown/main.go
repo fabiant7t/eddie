@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fabiant7t/appordown/internal/config"
 	apphttp "github.com/fabiant7t/appordown/internal/http"
@@ -16,6 +19,9 @@ var (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	// App information
 	slog.Info("build",
 		"version", version,
@@ -87,7 +93,9 @@ func main() {
 		os.Exit(1)
 	}
 	_ = httpServer
-
+	slog.Info("service running", "message", "press Ctrl+C to stop")
+	<-ctx.Done()
+	slog.Info("shutdown signal received", "error", ctx.Err())
 }
 
 func redact(value string) string {
