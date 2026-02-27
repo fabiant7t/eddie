@@ -23,6 +23,7 @@ const (
 	transitionNone transitionType = iota
 	transitionFailure
 	transitionRecovery
+	staleCycleGapMultiplier = 2
 )
 
 // Runner executes spec checks in cycles.
@@ -90,11 +91,13 @@ func (r *Runner) runCycle(ctx context.Context) {
 func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 	failureThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Failure, 1)
 	successThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Success, 1)
+	cycleAt := time.Now()
 
 	currentState, ok := r.stateStore.Get(parsedSpec.HTTP.Name)
 	if !ok {
 		currentState = state.SpecState{Status: state.StatusHealthy}
 	}
+	currentState = resetStaleConsecutiveState(currentState, cycleAt, r.cycleInterval)
 
 	nextState, transition := applyCycleResult(
 		currentState,
@@ -102,6 +105,7 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 		failureThreshold,
 		successThreshold,
 	)
+	nextState.LastCycleAt = cycleAt
 	r.stateStore.Set(parsedSpec.HTTP.Name, nextState)
 
 	switch transition {
@@ -119,6 +123,24 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error) {
 		)
 		r.triggerRecoveryActions(parsedSpec)
 	}
+}
+
+func resetStaleConsecutiveState(current state.SpecState, cycleAt time.Time, cycleInterval time.Duration) state.SpecState {
+	if current.LastCycleAt.IsZero() || cycleInterval <= 0 {
+		return current
+	}
+
+	maxGap := cycleInterval * staleCycleGapMultiplier
+	if maxGap <= 0 {
+		return current
+	}
+	if cycleAt.Sub(current.LastCycleAt) <= maxGap {
+		return current
+	}
+
+	current.ConsecutiveFailures = 0
+	current.ConsecutiveSuccesses = 0
+	return current
 }
 
 func applyCycleResult(

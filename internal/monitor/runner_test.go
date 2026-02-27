@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"testing"
+	"time"
 
 	"github.com/fabiant7t/eddie/internal/spec"
 	"github.com/fabiant7t/eddie/internal/state"
@@ -76,5 +77,41 @@ func TestCyclesDefaultsToOne(t *testing.T) {
 	}
 	if successThreshold != 1 {
 		t.Fatalf("successThreshold = %d, want 1", successThreshold)
+	}
+}
+
+func TestResetStaleConsecutiveStateResetsCounters(t *testing.T) {
+	now := time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC)
+	current := state.SpecState{
+		Status:               state.StatusHealthy,
+		ConsecutiveFailures:  3,
+		ConsecutiveSuccesses: 0,
+		LastCycleAt:          now.Add(-3 * time.Minute),
+	}
+
+	next := resetStaleConsecutiveState(current, now, time.Minute)
+	if next.ConsecutiveFailures != 0 {
+		t.Fatalf("ConsecutiveFailures = %d, want 0", next.ConsecutiveFailures)
+	}
+	if next.ConsecutiveSuccesses != 0 {
+		t.Fatalf("ConsecutiveSuccesses = %d, want 0", next.ConsecutiveSuccesses)
+	}
+}
+
+func TestResetStaleConsecutiveStateKeepsFreshCounters(t *testing.T) {
+	now := time.Date(2026, 2, 27, 18, 0, 0, 0, time.UTC)
+	current := state.SpecState{
+		Status:               state.StatusFailing,
+		ConsecutiveFailures:  0,
+		ConsecutiveSuccesses: 1,
+		LastCycleAt:          now.Add(-90 * time.Second),
+	}
+
+	next := resetStaleConsecutiveState(current, now, time.Minute)
+	if next.ConsecutiveFailures != current.ConsecutiveFailures {
+		t.Fatalf("ConsecutiveFailures = %d, want %d", next.ConsecutiveFailures, current.ConsecutiveFailures)
+	}
+	if next.ConsecutiveSuccesses != current.ConsecutiveSuccesses {
+		t.Fatalf("ConsecutiveSuccesses = %d, want %d", next.ConsecutiveSuccesses, current.ConsecutiveSuccesses)
 	}
 }

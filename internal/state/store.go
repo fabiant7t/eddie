@@ -1,6 +1,9 @@
 package state
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // Status represents the high-level state of a spec.
 type Status string
@@ -15,6 +18,7 @@ type SpecState struct {
 	Status               Status
 	ConsecutiveFailures  int
 	ConsecutiveSuccesses int
+	LastCycleAt          time.Time
 }
 
 // Store defines state persistence behavior.
