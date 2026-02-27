@@ -4,6 +4,7 @@
 
 - Loads runtime configuration from environment variables and CLI flags.
 - Parses one or more HTTP check specs from YAML files.
+- Runs active specs in monitoring cycles (in parallel).
 - Starts an HTTP server with:
   - `/` returning `app or down <version>` (optionally basic-auth protected)
   - `/healthz` returning `application/health+json`
@@ -80,6 +81,29 @@ http:
 ```
 
 `disabled` defaults to `false` when omitted.
+
+`cycles.failure` and `cycles.success` both default to `1` when omitted.
+
+## Monitoring Semantics
+
+- Every cycle, active specs are validated concurrently (goroutines + waitgroup).
+- Spec state is tracked in a state store (current implementation: in-memory).
+- Failure transition:
+  - occurs when `cycles.failure` consecutive checks fail.
+- Recovery transition:
+  - after a failure state, occurs when `cycles.success` consecutive checks succeed.
+- On transition to failure:
+  - `on_failure` is executed asynchronously (if configured)
+  - failure email is sent to all configured mail receivers (if mail is configured)
+- On transition to recovery:
+  - `on_success` is executed asynchronously (if configured)
+  - recovery email is sent to all configured mail receivers (if mail is configured)
+
+## Parse Failure Contract
+
+- If spec parsing fails at startup, appordown:
+  - sends an email to all configured mail receivers with error details (if mail is configured)
+  - exits the program
 
 ### Spec Identity Rules
 

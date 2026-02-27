@@ -14,7 +14,9 @@ import (
 	"github.com/fabiant7t/appordown/internal/config"
 	apphttp "github.com/fabiant7t/appordown/internal/http"
 	"github.com/fabiant7t/appordown/internal/mail"
+	"github.com/fabiant7t/appordown/internal/monitor"
 	"github.com/fabiant7t/appordown/internal/spec"
+	"github.com/fabiant7t/appordown/internal/state"
 )
 
 var (
@@ -71,28 +73,7 @@ func main() {
 		"no_tls", cfg.Mailserver.NoTLS,
 	)
 
-	// Mail service
-	opts := []mail.Option{
-		mail.WithPort(cfg.Mailserver.Port),
-	}
-	for _, receiver := range cfg.Mailserver.Receivers {
-		opts = append(opts, mail.WithReceiver(receiver))
-	}
-	if cfg.Mailserver.NoTLS {
-		opts = append(opts, mail.WithNoTLS())
-	}
-	mailService, err := mail.New(
-		cfg.Mailserver.Endpoint,
-		cfg.Mailserver.Username,
-		cfg.Mailserver.Password,
-		cfg.Mailserver.Sender,
-		opts...,
-	)
-	if err != nil {
-		slog.Error("failed to initialize mail service", "error", err)
-		os.Exit(1)
-	}
-
+	mailService := initializeMailService(cfg)
 	parsedSpecs, err := spec.Parse(cfg.SpecPath)
 	if err != nil {
 		slog.Error("failed to parse specs", "spec_path", cfg.SpecPath, "error", err)
@@ -107,6 +88,10 @@ func main() {
 			)
 		}
 	}
+
+	stateStore := state.NewInMemoryStore()
+	runner := monitor.NewRunner(parsedSpecs, cfg.CycleInterval, stateStore, mailService, cfg.Mailserver.Receivers)
+	go runner.Run(ctx)
 
 	// HTTP server
 	httpOpts := []apphttp.Option{}
@@ -156,6 +141,10 @@ func redact(value string) string {
 }
 
 func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service, parseErr error) {
+	if mailService == nil {
+		slog.Warn("cannot send parse failure email: mail is not configured")
+		return
+	}
 	if len(cfg.Mailserver.Receivers) == 0 {
 		slog.Warn("cannot send parse failure email: no mail receivers configured")
 		return
@@ -177,4 +166,35 @@ func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service,
 			slog.Error("failed to send parse failure email", "recipient", recipient, "error", err)
 		}
 	}
+}
+
+func initializeMailService(cfg config.Configuration) *mail.Service {
+	if cfg.Mailserver.Endpoint == "" || cfg.Mailserver.Username == "" || cfg.Mailserver.Password == "" || cfg.Mailserver.Sender == "" {
+		slog.Info("mail notifications disabled: mailserver configuration is incomplete")
+		return nil
+	}
+
+	opts := []mail.Option{
+		mail.WithPort(cfg.Mailserver.Port),
+	}
+	for _, receiver := range cfg.Mailserver.Receivers {
+		opts = append(opts, mail.WithReceiver(receiver))
+	}
+	if cfg.Mailserver.NoTLS {
+		opts = append(opts, mail.WithNoTLS())
+	}
+
+	mailService, err := mail.New(
+		cfg.Mailserver.Endpoint,
+		cfg.Mailserver.Username,
+		cfg.Mailserver.Password,
+		cfg.Mailserver.Sender,
+		opts...,
+	)
+	if err != nil {
+		slog.Error("mail notifications disabled: failed to initialize mail service", "error", err)
+		return nil
+	}
+
+	return mailService
 }
