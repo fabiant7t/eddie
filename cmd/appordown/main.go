@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/fabiant7t/appordown/internal/config"
+	"github.com/fabiant7t/appordown/internal/mail"
 )
 
 func main() {
@@ -13,7 +14,6 @@ func main() {
 		slog.Error("failed to load configuration", "error", err)
 		os.Exit(1)
 	}
-
 	slog.Info("config",
 		"configuration_path", cfg.ConfigurationPath,
 		"cycle_interval", cfg.CycleInterval.String(),
@@ -33,6 +33,29 @@ func main() {
 		"receivers", cfg.Mailserver.Receivers,
 		"no_tls", cfg.Mailserver.NoTLS,
 	)
+
+	opts := []mail.Option{
+		mail.WithPort(cfg.Mailserver.Port),
+	}
+	for _, receiver := range cfg.Mailserver.Receivers {
+		opts = append(opts, mail.WithReceiver(receiver))
+	}
+	if cfg.Mailserver.NoTLS {
+		opts = append(opts, mail.WithNoTLS())
+	}
+	mailService, err := mail.New(
+		cfg.Mailserver.Endpoint,
+		cfg.Mailserver.Username,
+		cfg.Mailserver.Password,
+		cfg.Mailserver.Sender,
+		opts...,
+	)
+	if err != nil {
+		slog.Error("failed to initialize mail service", "error", err)
+		os.Exit(1)
+	}
+	_ = mailService
+
 }
 
 func redact(value string) string {
