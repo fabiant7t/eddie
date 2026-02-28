@@ -8,6 +8,8 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -92,6 +94,11 @@ func main() {
 	runner := monitor.NewRunner(parsedSpecs, cfg.CycleInterval, stateStore, mailService, cfg.Mailserver.Receivers)
 	go runner.Run(ctx)
 
+	specBaseDir, err := resolveSpecBaseDir(cfg.SpecPath)
+	if err != nil {
+		slog.Warn("failed to resolve spec base dir", "spec_path", cfg.SpecPath, "error", err)
+	}
+
 	// HTTP server
 	httpOpts := []apphttp.Option{}
 	httpOpts = append(httpOpts, apphttp.WithAppVersion(version))
@@ -102,9 +109,17 @@ func main() {
 		}
 		for _, parsedSpec := range parsedSpecs {
 			specState, hasState := stateStore.Get(parsedSpec.HTTP.Name)
+			sourcePath := parsedSpec.SourcePath
+			if specBaseDir != "" {
+				if rel, err := filepath.Rel(specBaseDir, parsedSpec.SourcePath); err == nil {
+					if rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+						sourcePath = rel
+					}
+				}
+			}
 			snapshot.Specs = append(snapshot.Specs, apphttp.SpecStatus{
 				Name:                 parsedSpec.HTTP.Name,
-				SourcePath:           parsedSpec.SourcePath,
+				SourcePath:           sourcePath,
 				Disabled:             !parsedSpec.IsActive(),
 				HasState:             hasState,
 				Status:               string(specState.Status),
@@ -158,6 +173,43 @@ func redact(value string) string {
 		return ""
 	}
 	return "***"
+}
+
+func resolveSpecBaseDir(specPath string) (string, error) {
+	expr := strings.TrimSpace(specPath)
+	if expr == "" {
+		return "", fmt.Errorf("spec path cannot be empty")
+	}
+
+	if expr == "~" || strings.HasPrefix(expr, "~/") || strings.HasPrefix(expr, "~\\") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve user home directory: %w", err)
+		}
+		trimmed := strings.TrimPrefix(strings.TrimPrefix(expr, "~/"), "~\\")
+		expr = filepath.Join(homeDir, trimmed)
+	} else if strings.HasPrefix(expr, "~") {
+		return "", fmt.Errorf("unsupported home expansion: %q", expr)
+	}
+
+	if !filepath.IsAbs(expr) {
+		workingDir, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("resolve working directory: %w", err)
+		}
+		expr = filepath.Join(workingDir, expr)
+	}
+	expr = filepath.Clean(expr)
+
+	if strings.ContainsAny(expr, "*?[") {
+		return filepath.Dir(expr), nil
+	}
+
+	if info, err := os.Stat(expr); err == nil && info.IsDir() {
+		return expr, nil
+	}
+
+	return filepath.Dir(expr), nil
 }
 
 func notifySpecParseFailure(cfg config.Configuration, mailService *mail.Service, parseErr error) {
