@@ -263,12 +263,6 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       table-layout: auto;
       font-size: 0.76rem;
     }
-    caption {
-      text-align: left;
-      padding: 0.45rem 0.85rem 0;
-      color: var(--muted);
-      font-size: 0.72rem;
-    }
     thead th {
       position: sticky;
       top: 0;
