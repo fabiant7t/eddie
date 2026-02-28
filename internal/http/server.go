@@ -246,11 +246,13 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
     .table-wrap {
       max-height: calc(100vh - 7rem);
       overflow: auto;
+      padding: 0 0.6rem 0.6rem;
     }
     table {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: collapse;
-      table-layout: fixed;
+      table-layout: auto;
       font-size: 0.76rem;
     }
     caption {
@@ -282,6 +284,7 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    tbody tr:nth-child(odd) td { background: #1a1e2f; }
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr:hover td { background: #1f2335; }
     code {
@@ -310,17 +313,6 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       <div class="table-wrap">
         <table>
           <caption>Current spec state and recent cycle timing</caption>
-          <colgroup>
-            <col style="width: 17rem" />
-            <col style="width: 5.5rem" />
-            <col style="width: 3.8rem" />
-            <col style="width: 3.8rem" />
-            <col style="width: 3.8rem" />
-            <col style="width: 3.8rem" />
-            <col style="width: 13rem" />
-            <col style="width: 13rem" />
-            <col />
-          </colgroup>
           <thead>
             <tr>
               <th scope="col">Name</th>
