@@ -11,6 +11,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-default")
 	t.Setenv(envSpecPath, "")
 	t.Setenv(envCycleInterval, "")
+	t.Setenv(envShutdownTimeout, "")
 	t.Setenv(envLogLevel, "")
 	t.Setenv(envHTTPAddress, "")
 	t.Setenv(envHTTPPort, "")
@@ -31,6 +32,9 @@ func TestLoadDefaults(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.ShutdownTimeout != 5*time.Second {
+		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 5*time.Second)
 	}
 	if cfg.LogLevel != "INFO" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "INFO")
@@ -57,6 +61,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-env")
 	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envShutdownTimeout, "8s")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -77,6 +82,9 @@ func TestLoadFromEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.ShutdownTimeout != 8*time.Second {
+		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 8*time.Second)
 	}
 	if cfg.LogLevel != "DEBUG" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "DEBUG")
@@ -124,6 +132,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-cli")
 	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envShutdownTimeout, "8s")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
 	t.Setenv(envHTTPPort, "9090")
@@ -140,6 +149,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	cfg, err := Load([]string{
 		"--spec-path=/opt/eddie/config.d",
 		"--cycle-interval=60s",
+		"--shutdown-timeout=12s",
 		"--log-level=warn",
 		"--http-address=0.0.0.0",
 		"--http-port=8088",
@@ -160,6 +170,9 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.ShutdownTimeout != 12*time.Second {
+		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 12*time.Second)
 	}
 	if cfg.LogLevel != "WARN" {
 		t.Fatalf("LogLevel = %q, want %q", cfg.LogLevel, "WARN")

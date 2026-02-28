@@ -33,6 +33,10 @@ Configuration is read with precedence: `CLI > ENV > defaults`.
   Go duration string (for example `60s`, `1m`).  
   Default: `60s`.
 
+- `EDDIE_SHUTDOWN_TIMEOUT` / `--shutdown-timeout`  
+  Go duration string (for example `5s`, `1m`).  
+  Default: `5s`.
+
 - `EDDIE_LOG_LEVEL` (or `EDDIE_LOGLEVEL`) / `--log-level`  
   One of `DEBUG`, `INFO`, `WARN`, `ERROR`.  
   Default: `INFO`.

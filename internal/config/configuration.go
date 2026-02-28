@@ -14,6 +14,8 @@ import (
 const (
 	defaultCycleInterval = 60 * time.Second
 	envCycleInterval     = "EDDIE_CYCLE_INTERVAL"
+	defaultShutdownTimeout = 5 * time.Second
+	envShutdownTimeout     = "EDDIE_SHUTDOWN_TIMEOUT"
 	defaultLogLevel      = "INFO"
 	envLogLevel          = "EDDIE_LOG_LEVEL"
 	envLogLevelAlt       = "EDDIE_LOGLEVEL"
@@ -37,11 +39,12 @@ const (
 
 // Configuration holds runtime settings for the app.
 type Configuration struct {
-	SpecPath      string
-	CycleInterval time.Duration
-	LogLevel      string
-	HTTPServer    HTTPServerConfiguration
-	Mailserver    MailserverConfiguration
+	SpecPath        string
+	CycleInterval   time.Duration
+	ShutdownTimeout time.Duration
+	LogLevel        string
+	HTTPServer      HTTPServerConfiguration
+	Mailserver      MailserverConfiguration
 }
 
 // HTTPServerConfiguration holds HTTP server settings.
@@ -72,9 +75,10 @@ func Load(args []string) (Configuration, error) {
 	}
 
 	cfg := Configuration{
-		SpecPath:      defaultSpecPath,
-		CycleInterval: defaultCycleInterval,
-		LogLevel:      defaultLogLevel,
+		SpecPath:        defaultSpecPath,
+		CycleInterval:   defaultCycleInterval,
+		ShutdownTimeout: defaultShutdownTimeout,
+		LogLevel:        defaultLogLevel,
 		HTTPServer: HTTPServerConfiguration{
 			Address: defaultHTTPAddress,
 			Port:    defaultHTTPPort,
@@ -93,6 +97,13 @@ func Load(args []string) (Configuration, error) {
 			return Configuration{}, fmt.Errorf("invalid %s: %w", envCycleInterval, err)
 		}
 		cfg.CycleInterval = d
+	}
+	if raw := os.Getenv(envShutdownTimeout); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return Configuration{}, fmt.Errorf("invalid %s: %w", envShutdownTimeout, err)
+		}
+		cfg.ShutdownTimeout = d
 	}
 	if raw := os.Getenv(envLogLevel); raw != "" {
 		cfg.LogLevel = raw
@@ -150,6 +161,7 @@ func Load(args []string) (Configuration, error) {
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&cfg.SpecPath, "spec-path", cfg.SpecPath, "spec path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
+	fs.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", cfg.ShutdownTimeout, "shutdown timeout (e.g. 5s)")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (DEBUG, INFO, WARN, ERROR)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
 	fs.IntVar(&cfg.HTTPServer.Port, "http-port", cfg.HTTPServer.Port, "http server listen port")
