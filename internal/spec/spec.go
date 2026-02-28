@@ -33,7 +33,7 @@ type HTTPSpec struct {
 	Expect          HTTPExpect        `yaml:"expect"`
 	Cycles          SpecCycles        `yaml:"cycles"`
 	OnFailure       string            `yaml:"on_failure"`
-	OnSuccess       string            `yaml:"on_success"`
+	OnResolved      string            `yaml:"on_resolved"`
 }
 
 // IsActive reports whether the spec should be used.

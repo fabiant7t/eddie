@@ -331,8 +331,8 @@ func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
 }
 
 func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
-	if parsedSpec.HTTP.OnSuccess != "" {
-		go runScript("on_success", parsedSpec.HTTP.Name, parsedSpec.HTTP.OnSuccess)
+	if parsedSpec.HTTP.OnResolved != "" {
+		go runScript("on_resolved", parsedSpec.HTTP.Name, parsedSpec.HTTP.OnResolved)
 	}
 
 	if r.mailService == nil || len(r.mailRecipients) == 0 {

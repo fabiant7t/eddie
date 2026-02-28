@@ -87,7 +87,7 @@ http:
     success: 2
   on_failure: |
     echo "[FAIL] app-health" >&2
-  on_success: |
+  on_resolved: |
     echo "[RECOVERY] app-health"
 ```
 
@@ -154,7 +154,7 @@ http:
   Consecutive success threshold to recover from failing state. Defaults to `1` when omitted/`<=0`.
 - `http.on_failure`  
   Optional shell script executed asynchronously when the spec transitions to failing.
-- `http.on_success`  
+- `http.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 
 ## Monitoring Semantics
@@ -169,7 +169,7 @@ http:
   - `on_failure` is executed asynchronously (if configured)
   - failure email is sent to all configured mail receivers (if mail is configured)
 - On transition to recovery:
-  - `on_success` is executed asynchronously (if configured)
+  - `on_resolved` is executed asynchronously (if configured)
   - recovery email is sent to all configured mail receivers (if mail is configured)
 
 ## Parse Failure Contract
