@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -178,5 +179,23 @@ func TestKeyValueColorWriterHandlesSplitKeyTokens(t *testing.T) {
 	}
 	if !strings.Contains(got, ansiBold+ansiSolarizedRed+"ERROR"+ansiReset) {
 		t.Fatalf("split key level value was not colored as expected: %q", got)
+	}
+}
+
+func TestNewLoggerWithWriterColorToggle(t *testing.T) {
+	var coloredOut bytes.Buffer
+	coloredLogger := NewLoggerWithWriter(slog.LevelInfo, &coloredOut, true)
+	coloredLogger.Info("config", "name", "api-health")
+	colored := coloredOut.String()
+	if !strings.Contains(colored, ansiSolarizedYellow+"api-health"+ansiReset) {
+		t.Fatalf("expected ANSI colorized output, got %q", colored)
+	}
+
+	var plainOut bytes.Buffer
+	plainLogger := NewLoggerWithWriter(slog.LevelInfo, &plainOut, false)
+	plainLogger.Info("config", "name", "api-health")
+	plain := plainOut.String()
+	if strings.Contains(plain, "\x1b[") {
+		t.Fatalf("expected plain output without ANSI escapes, got %q", plain)
 	}
 }

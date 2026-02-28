@@ -29,9 +29,18 @@ func NewLogger(level slog.Level, output *os.File) *slog.Logger {
 	if output == nil {
 		output = os.Stderr
 	}
+	return NewLoggerWithWriter(level, output, terminalSupportsColor(output))
+}
 
-	var out io.Writer = output
-	if terminalSupportsColor(output) {
+// NewLoggerWithWriter creates a slog logger for any io.Writer and applies
+// colorization according to the explicit toggle.
+func NewLoggerWithWriter(level slog.Level, output io.Writer, colorize bool) *slog.Logger {
+	if output == nil {
+		output = os.Stderr
+	}
+
+	out := output
+	if colorize {
 		out = &keyValueColorWriter{target: output}
 	}
 
