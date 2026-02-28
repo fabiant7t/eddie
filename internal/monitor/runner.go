@@ -77,15 +77,13 @@ func (r *Runner) runCycle(ctx context.Context) {
 		}
 
 		parsedSpec := parsedSpec
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			cycleStartedAt := time.Now()
 			r.markCycleStarted(parsedSpec, cycleStartedAt)
 			checkErr := validateHTTPSpec(ctx, parsedSpec)
 			r.handleCycleResult(parsedSpec, checkErr, cycleStartedAt)
-		}()
+		})
 	}
 	wg.Wait()
 }
