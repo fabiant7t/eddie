@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,14 @@ import (
 	"net"
 	nethttp "net/http"
 	"strconv"
+	"sync"
 	"time"
+)
+
+var (
+	statusPageTemplateOnce sync.Once
+	statusPageTemplate     *template.Template
+	statusPageTemplateErr  error
 )
 
 // Server holds HTTP server settings.
@@ -450,6 +458,8 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
         rowsEl.innerHTML = html;
       }
 
+      updateStaticRows();
+
       if (!window.EventSource) {
         setStreamState("live updates unsupported");
         return;
@@ -483,17 +493,28 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
         });
       }
 
-      updateStaticRows();
     })();
   </script>
 </body>
 </html>`
 
-	tmpl := template.Must(template.New("status").Parse(statusPage))
+	statusPageTemplateOnce.Do(func() {
+		statusPageTemplate, statusPageTemplateErr = template.New("status").Parse(statusPage)
+	})
+	if statusPageTemplateErr != nil {
+		nethttp.Error(w, "failed to render status page", nethttp.StatusInternalServerError)
+		return
+	}
+
+	var rendered bytes.Buffer
+	if err := statusPageTemplate.Execute(&rendered, data); err != nil {
+		nethttp.Error(w, "failed to render status page", nethttp.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(nethttp.StatusOK)
-	_ = tmpl.Execute(w, data)
+	_, _ = w.Write(rendered.Bytes())
 }
 
 func (s *Server) statusEventsHandler(w nethttp.ResponseWriter, r *nethttp.Request) {

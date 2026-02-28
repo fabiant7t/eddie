@@ -235,6 +235,11 @@ func TestStatusRouteWithoutBasicAuth(t *testing.T) {
 	if !strings.Contains(body, `new EventSource("/events")`) {
 		t.Fatalf("status body missing EventSource wiring: %q", body)
 	}
+	updateStaticRowsPos := strings.Index(body, "updateStaticRows();")
+	eventSourceCheckPos := strings.Index(body, "if (!window.EventSource)")
+	if updateStaticRowsPos == -1 || eventSourceCheckPos == -1 || updateStaticRowsPos > eventSourceCheckPos {
+		t.Fatalf("status body should call updateStaticRows before EventSource check: %q", body)
+	}
 	if !strings.Contains(body, "<th scope=\"col\">Duration</th>") {
 		t.Fatalf("status body missing duration header: %q", body)
 	}
