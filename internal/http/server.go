@@ -396,7 +396,10 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       function formatStarted(value) {
         const ms = parseTimestamp(value);
         if (Number.isNaN(ms)) return value || "never";
-        return timeFormatter.format(new Date(ms));
+        const formatted = timeFormatter.format(new Date(ms));
+        const match = formatted.match(/(GMT[+-]\d{1,2}|UTC|[A-Z]{2,})/);
+        if (!match) return formatted;
+        return formatted.replace(match[1], "(" + match[1] + ")");
       }
 
       function formatDuration(startValue, endValue) {
@@ -419,9 +422,9 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       function render(snapshot) {
         if (!snapshot || typeof snapshot !== "object") return;
 
-        const generatedAt = String(snapshot.generated_at || "unknown");
-        generatedAtEl.textContent = generatedAt;
-        generatedAtEl.setAttribute("datetime", generatedAt);
+        const generatedAtRaw = String(snapshot.generated_at || "unknown");
+        generatedAtEl.textContent = formatStarted(generatedAtRaw);
+        generatedAtEl.setAttribute("datetime", generatedAtRaw);
 
         const rows = Array.isArray(snapshot.rows) ? snapshot.rows : [];
         specCountEl.textContent = String(rows.length) + " specs";
@@ -474,6 +477,8 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       stream.onerror = () => setStreamState("reconnecting…");
 
       function updateStaticRows() {
+        const generatedRaw = generatedAtEl.getAttribute("datetime") || generatedAtEl.textContent;
+        generatedAtEl.textContent = formatStarted(generatedRaw);
         const rows = rowsEl.querySelectorAll("tr");
         rows.forEach((row) => {
           const timeEls = row.querySelectorAll("time");
