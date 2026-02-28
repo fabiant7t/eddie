@@ -312,7 +312,6 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       </header>
       <div class="table-wrap">
         <table>
-          <caption>Current spec state and recent cycle timing</caption>
           <thead>
             <tr>
               <th scope="col">Name</th>
