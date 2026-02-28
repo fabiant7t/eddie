@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 const (
@@ -206,9 +208,12 @@ func terminalSupportsColor(file *os.File) bool {
 		return false
 	}
 
-	isTTY := false
-	if stat, err := file.Stat(); err == nil {
-		isTTY = stat.Mode()&os.ModeCharDevice != 0
+	isTTY := term.IsTerminal(int(file.Fd()))
+	if !isTTY {
+		// Fallback for edge cases where fd-based detection is unavailable.
+		if stat, err := file.Stat(); err == nil {
+			isTTY = stat.Mode()&os.ModeCharDevice != 0
+		}
 	}
 
 	return shouldColorizeOutput(
