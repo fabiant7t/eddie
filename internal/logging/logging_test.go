@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -133,5 +134,49 @@ func TestColorizeSlogTextLineColorsNameYellow(t *testing.T) {
 	nameLine := string(colorizeSlogTextLine([]byte("name=my-spec\n")))
 	if !strings.Contains(nameLine, ansiSolarizedYellow+"my-spec"+ansiReset) {
 		t.Fatalf("name value was not colored as expected: %q", nameLine)
+	}
+}
+
+func TestKeyValueColorWriterBuffersUntilNewline(t *testing.T) {
+	var out bytes.Buffer
+	writer := &keyValueColorWriter{target: &out}
+
+	if n, err := writer.Write([]byte("level=INF")); err != nil || n != len("level=INF") {
+		t.Fatalf("first Write() = (%d, %v), want (%d, nil)", n, err, len("level=INF"))
+	}
+	if out.Len() != 0 {
+		t.Fatalf("expected no output before newline, got %q", out.String())
+	}
+
+	if n, err := writer.Write([]byte("O\n")); err != nil || n != len("O\n") {
+		t.Fatalf("second Write() = (%d, %v), want (%d, nil)", n, err, len("O\n"))
+	}
+
+	got := out.String()
+	if !strings.Contains(got, ansiSolarizedBase1+"level"+ansiReset+ansiSolarizedBase1+"="+ansiReset) {
+		t.Fatalf("buffered line key was not colored as expected: %q", got)
+	}
+	if !strings.Contains(got, ansiSolarizedBlue+"INFO"+ansiReset) {
+		t.Fatalf("buffered line value was not colored as expected: %q", got)
+	}
+}
+
+func TestKeyValueColorWriterHandlesSplitKeyTokens(t *testing.T) {
+	var out bytes.Buffer
+	writer := &keyValueColorWriter{target: &out}
+
+	if n, err := writer.Write([]byte("lev")); err != nil || n != len("lev") {
+		t.Fatalf("first Write() = (%d, %v), want (%d, nil)", n, err, len("lev"))
+	}
+	if n, err := writer.Write([]byte("el=ERROR\n")); err != nil || n != len("el=ERROR\n") {
+		t.Fatalf("second Write() = (%d, %v), want (%d, nil)", n, err, len("el=ERROR\n"))
+	}
+
+	got := out.String()
+	if !strings.Contains(got, ansiSolarizedBase1+"level"+ansiReset+ansiSolarizedBase1+"="+ansiReset) {
+		t.Fatalf("split key token was not colored as expected: %q", got)
+	}
+	if !strings.Contains(got, ansiBold+ansiSolarizedRed+"ERROR"+ansiReset) {
+		t.Fatalf("split key level value was not colored as expected: %q", got)
 	}
 }

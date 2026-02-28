@@ -40,17 +40,31 @@ func NewLogger(level slog.Level, output *os.File) *slog.Logger {
 
 type keyValueColorWriter struct {
 	target io.Writer
+	pending []byte
 }
 
 func (w *keyValueColorWriter) Write(p []byte) (int, error) {
-	colored := colorizeSlogTextLine(p)
-	n, err := w.target.Write(colored)
-	if err != nil {
-		return 0, err
+	w.pending = append(w.pending, p...)
+
+	for {
+		newlineIndex := bytes.IndexByte(w.pending, '\n')
+		if newlineIndex < 0 {
+			break
+		}
+
+		line := w.pending[:newlineIndex+1]
+		colored := colorizeSlogTextLine(line)
+		n, err := w.target.Write(colored)
+		if err != nil {
+			return 0, err
+		}
+		if n != len(colored) {
+			return 0, io.ErrShortWrite
+		}
+
+		w.pending = w.pending[newlineIndex+1:]
 	}
-	if n != len(colored) {
-		return 0, io.ErrShortWrite
-	}
+
 	return len(p), nil
 }
 
