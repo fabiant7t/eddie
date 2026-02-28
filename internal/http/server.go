@@ -354,14 +354,6 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       const streamStateEl = document.getElementById("stream-state");
       if (!generatedAtEl || !specCountEl || !rowsEl || !streamStateEl) return;
 
-      function escapeHTML(value) {
-        return String(value)
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;");
-      }
-
       function stateClass(state) {
         if (state === "healthy") return "state-healthy";
         if (state === "failing") return "state-failing";
@@ -422,34 +414,75 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
         const rows = Array.isArray(snapshot.rows) ? snapshot.rows : [];
         specCountEl.textContent = String(rows.length) + " specs";
 
-        const html = rows.map((row) => {
-          const name = escapeHTML(row.name ?? "");
-          const sourcePath = escapeHTML(row.source_path ?? "");
-          const state = escapeHTML(row.state ?? "unknown");
+        rowsEl.textContent = "";
+        rows.forEach((row) => {
+          const name = String(row.name ?? "");
+          const sourcePath = String(row.source_path ?? "");
+          const state = String(row.state ?? "unknown");
           const disabled = String(Boolean(row.disabled));
           const hasState = String(Boolean(row.has_state));
-          const failures = escapeHTML(row.consecutive_failures ?? 0);
-          const successes = escapeHTML(row.consecutive_successes ?? 0);
-          const lastStartedRaw = escapeHTML(row.last_cycle_started_at ?? "never");
-          const lastCompletedRaw = escapeHTML(row.last_cycle_at ?? "never");
-          const lastStarted = escapeHTML(formatStarted(lastStartedRaw));
-          const lastDuration = escapeHTML(formatDuration(lastStartedRaw, lastCompletedRaw));
-          const cls = stateClass(row.state);
+          const failures = String(row.consecutive_failures ?? 0);
+          const successes = String(row.consecutive_successes ?? 0);
+          const lastStartedRaw = String(row.last_cycle_started_at ?? "never");
+          const lastCompletedRaw = String(row.last_cycle_at ?? "never");
+          const lastStarted = formatStarted(lastStartedRaw);
+          const lastDuration = formatDuration(lastStartedRaw, lastCompletedRaw);
 
-          return "<tr>"
-            + "<td title=\"" + name + "\">" + name + "</td>"
-            + "<td><span class=\"" + cls + "\">" + state + "</span></td>"
-            + "<td class=\"bool\">" + disabled + "</td>"
-            + "<td class=\"bool\">" + hasState + "</td>"
-            + "<td>" + failures + "</td>"
-            + "<td>" + successes + "</td>"
-            + "<td><time datetime=\"" + lastStartedRaw + "\">" + lastStarted + "</time></td>"
-            + "<td><time datetime=\"" + lastCompletedRaw + "\">" + lastDuration + "</time></td>"
-            + "<td title=\"" + sourcePath + "\"><code>" + sourcePath + "</code></td>"
-            + "</tr>";
-        }).join("");
+          const tr = document.createElement("tr");
 
-        rowsEl.innerHTML = html;
+          const nameTd = document.createElement("td");
+          nameTd.title = name;
+          nameTd.textContent = name;
+          tr.appendChild(nameTd);
+
+          const stateTd = document.createElement("td");
+          const stateSpan = document.createElement("span");
+          stateSpan.className = stateClass(state);
+          stateSpan.textContent = state;
+          stateTd.appendChild(stateSpan);
+          tr.appendChild(stateTd);
+
+          const offTd = document.createElement("td");
+          offTd.className = "bool";
+          offTd.textContent = disabled;
+          tr.appendChild(offTd);
+
+          const hasStateTd = document.createElement("td");
+          hasStateTd.className = "bool";
+          hasStateTd.textContent = hasState;
+          tr.appendChild(hasStateTd);
+
+          const failTd = document.createElement("td");
+          failTd.textContent = failures;
+          tr.appendChild(failTd);
+
+          const succTd = document.createElement("td");
+          succTd.textContent = successes;
+          tr.appendChild(succTd);
+
+          const startedTd = document.createElement("td");
+          const startedTime = document.createElement("time");
+          startedTime.setAttribute("datetime", lastStartedRaw);
+          startedTime.textContent = lastStarted;
+          startedTd.appendChild(startedTime);
+          tr.appendChild(startedTd);
+
+          const durationTd = document.createElement("td");
+          const durationTime = document.createElement("time");
+          durationTime.setAttribute("datetime", lastCompletedRaw);
+          durationTime.textContent = lastDuration;
+          durationTd.appendChild(durationTime);
+          tr.appendChild(durationTd);
+
+          const sourceTd = document.createElement("td");
+          sourceTd.title = sourcePath;
+          const sourceCode = document.createElement("code");
+          sourceCode.textContent = sourcePath;
+          sourceTd.appendChild(sourceCode);
+          tr.appendChild(sourceTd);
+
+          rowsEl.appendChild(tr);
+        });
       }
 
       updateStaticRows();
