@@ -235,6 +235,15 @@ func TestStatusRouteWithoutBasicAuth(t *testing.T) {
 	if !strings.Contains(body, `new EventSource("/events")`) {
 		t.Fatalf("status body missing EventSource wiring: %q", body)
 	}
+	if !strings.Contains(body, "<th scope=\"col\">Duration</th>") {
+		t.Fatalf("status body missing duration header: %q", body)
+	}
+	if !strings.Contains(body, "function formatStarted(value)") {
+		t.Fatalf("status body missing formatStarted helper: %q", body)
+	}
+	if !strings.Contains(body, "function formatDuration(startValue, endValue)") {
+		t.Fatalf("status body missing formatDuration helper: %q", body)
+	}
 	if !strings.Contains(body, "datetime=\"2026-02-27T18:00:00Z\">2026-02-27T18:00:00Z</time>") {
 		t.Fatalf("status body missing generated_at: %q", body)
 	}

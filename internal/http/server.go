@@ -330,7 +330,7 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
               <th scope="col">Fail</th>
               <th scope="col">Succ</th>
               <th scope="col">Started</th>
-              <th scope="col">Done</th>
+              <th scope="col">Duration</th>
               <th scope="col">Source</th>
             </tr>
           </thead>
@@ -379,6 +379,43 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
         streamStateEl.textContent = text;
       }
 
+      const timeFormatter = new Intl.DateTimeFormat(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZoneName: "short",
+      });
+
+      function parseTimestamp(value) {
+        if (!value || value === "never") return NaN;
+        const ms = Date.parse(value);
+        return Number.isNaN(ms) ? NaN : ms;
+      }
+
+      function formatStarted(value) {
+        const ms = parseTimestamp(value);
+        if (Number.isNaN(ms)) return value || "never";
+        return timeFormatter.format(new Date(ms));
+      }
+
+      function formatDuration(startValue, endValue) {
+        const start = parseTimestamp(startValue);
+        const end = parseTimestamp(endValue);
+        if (Number.isNaN(start) || Number.isNaN(end)) return "never";
+        const totalMs = Math.max(0, end - start);
+        if (totalMs < 1000) return totalMs + "ms";
+        const totalSeconds = Math.round(totalMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        let out = "";
+        if (hours > 0) out += hours + "h";
+        if (minutes > 0 || hours > 0) out += minutes + "m";
+        out += seconds + "s";
+        return out;
+      }
+
       function render(snapshot) {
         if (!snapshot || typeof snapshot !== "object") return;
 
@@ -397,8 +434,10 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
           const hasState = String(Boolean(row.has_state));
           const failures = escapeHTML(row.consecutive_failures ?? 0);
           const successes = escapeHTML(row.consecutive_successes ?? 0);
-          const lastStarted = escapeHTML(row.last_cycle_started_at ?? "never");
-          const lastCompleted = escapeHTML(row.last_cycle_at ?? "never");
+          const lastStartedRaw = escapeHTML(row.last_cycle_started_at ?? "never");
+          const lastCompletedRaw = escapeHTML(row.last_cycle_at ?? "never");
+          const lastStarted = escapeHTML(formatStarted(lastStartedRaw));
+          const lastDuration = escapeHTML(formatDuration(lastStartedRaw, lastCompletedRaw));
           const cls = stateClass(row.state);
 
           return "<tr>"
@@ -408,8 +447,8 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
             + "<td class=\"bool\">" + hasState + "</td>"
             + "<td>" + failures + "</td>"
             + "<td>" + successes + "</td>"
-            + "<td><time datetime=\"" + lastStarted + "\">" + lastStarted + "</time></td>"
-            + "<td><time datetime=\"" + lastCompleted + "\">" + lastCompleted + "</time></td>"
+            + "<td><time datetime=\"" + lastStartedRaw + "\">" + lastStarted + "</time></td>"
+            + "<td><time datetime=\"" + lastCompletedRaw + "\">" + lastDuration + "</time></td>"
             + "<td title=\"" + sourcePath + "\"><code>" + sourcePath + "</code></td>"
             + "</tr>";
         }).join("");
@@ -433,6 +472,22 @@ func (s *Server) statusHandler(w nethttp.ResponseWriter, r *nethttp.Request) {
       });
       stream.onopen = () => setStreamState("live");
       stream.onerror = () => setStreamState("reconnecting…");
+
+      function updateStaticRows() {
+        const rows = rowsEl.querySelectorAll("tr");
+        rows.forEach((row) => {
+          const timeEls = row.querySelectorAll("time");
+          if (timeEls.length < 2) return;
+          const startedEl = timeEls[0];
+          const doneEl = timeEls[1];
+          const startedRaw = startedEl.getAttribute("datetime") || "never";
+          const doneRaw = doneEl.getAttribute("datetime") || "never";
+          startedEl.textContent = formatStarted(startedRaw);
+          doneEl.textContent = formatDuration(startedRaw, doneRaw);
+        });
+      }
+
+      updateStaticRows();
     })();
   </script>
 </body>
