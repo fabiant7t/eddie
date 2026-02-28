@@ -153,7 +153,7 @@ func main() {
 	case <-ctx.Done():
 		slog.Info("shutdown signal received", "error", ctx.Err())
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
