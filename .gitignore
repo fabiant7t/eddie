@@ -1,3 +1,4 @@
 .envrc
 /eddie
+dist/
 spec.d/
