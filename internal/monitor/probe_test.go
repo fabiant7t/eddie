@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fabiant7t/eddie/internal/spec"
 )
@@ -260,5 +261,59 @@ func TestValidateProbeSpecReturnsAssertionErrorContext(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `assert "ct-is-js"`) {
 		t.Fatalf("validateProbeSpec() error = %v, want assert id in message", err)
+	}
+}
+
+func TestValidateProbeSpecJSONPathAgeSeconds(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		updated := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
+		_, _ = w.Write([]byte(`{"updated":"` + updated + `"}`))
+	}))
+	defer server.Close()
+
+	err := validateProbeSpec(context.Background(), spec.Spec{
+		Probe: &spec.ProbeSpec{
+			Name: "dms-freshness",
+			Requests: []spec.ProbeRequest{
+				{
+					ID:  "dms",
+					URL: server.URL + "/ilmenau.json",
+				},
+			},
+			Extracts: []spec.ProbeExtract{
+				{
+					ID:   "updated_ts",
+					From: "dms",
+					Source: spec.ProbeSource{
+						Type: "json_path",
+						Key:  "$.updated",
+					},
+				},
+				{
+					ID:   "age_seconds",
+					From: "dms",
+					Source: spec.ProbeSource{
+						Type: "json_path",
+						Key:  "$.updated",
+					},
+					Transforms: []string{"age_seconds"},
+				},
+			},
+			Asserts: []spec.ProbeAssert{
+				{
+					ID: "age-lte-600",
+					Op: "lte",
+					Left: spec.ProbeOperand{
+						Ref: "age_seconds",
+					},
+					Right: spec.ProbeOperand{
+						Value: 600,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("validateProbeSpec() error = %v, want nil", err)
 	}
 }

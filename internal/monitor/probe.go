@@ -155,6 +155,16 @@ func extractProbeValue(result probeRequestResult, extract spec.ProbeExtract) (an
 			return nil, fmt.Errorf("canonicalize json body: %w", err)
 		}
 		value = string(normalized)
+	case "json_path":
+		var decoded any
+		if err := json.Unmarshal([]byte(result.Body), &decoded); err != nil {
+			return nil, fmt.Errorf("parse json body: %w", err)
+		}
+		resolved, err := resolveJSONPath(decoded, extract.Source.Key)
+		if err != nil {
+			return nil, err
+		}
+		value = resolved
 	default:
 		return nil, fmt.Errorf("unsupported source type %q", extract.Source.Type)
 	}
@@ -199,9 +209,46 @@ func applyProbeTransform(value any, transform string) (any, error) {
 			return nil, fmt.Errorf("transform as_int failed: %w", err)
 		}
 		return parsed, nil
+	case "age_seconds":
+		timestamp, err := probeTimeValue(value)
+		if err != nil {
+			return nil, fmt.Errorf("transform age_seconds failed: %w", err)
+		}
+		return int64(time.Since(timestamp).Seconds()), nil
 	default:
 		return nil, fmt.Errorf("unsupported transform %q", transform)
 	}
+}
+
+func resolveJSONPath(root any, rawPath string) (any, error) {
+	path := strings.TrimSpace(rawPath)
+	if path == "" {
+		return nil, fmt.Errorf("json_path cannot be empty")
+	}
+	path = strings.TrimPrefix(path, "$.")
+	path = strings.TrimPrefix(path, "$")
+	if path == "" {
+		return root, nil
+	}
+
+	segments := strings.Split(path, ".")
+	current := root
+	for _, segment := range segments {
+		key := strings.TrimSpace(segment)
+		if key == "" {
+			return nil, fmt.Errorf("invalid json_path %q", rawPath)
+		}
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("json_path %q is not addressable at %q", rawPath, key)
+		}
+		next, exists := object[key]
+		if !exists {
+			return nil, fmt.Errorf("json_path %q key %q not found", rawPath, key)
+		}
+		current = next
+	}
+	return current, nil
 }
 
 func evaluateProbeAssert(assertion spec.ProbeAssert, extracted map[string]any) error {
@@ -384,5 +431,44 @@ func probeNumericValue(value any) (float64, error) {
 		return parsed, nil
 	default:
 		return 0, fmt.Errorf("value %v (%T) is not numeric", value, value)
+	}
+}
+
+func probeTimeValue(value any) (time.Time, error) {
+	switch typed := value.(type) {
+	case string:
+		raw := strings.TrimSpace(typed)
+		if raw == "" {
+			return time.Time{}, fmt.Errorf("empty string")
+		}
+		if unix, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return time.Unix(unix, 0).UTC(), nil
+		}
+		layouts := []string{
+			time.RFC3339Nano,
+			time.RFC3339,
+			"2006-01-02 15:04:05Z07:00",
+			"2006-01-02 15:04:05",
+		}
+		for _, layout := range layouts {
+			if parsed, err := time.Parse(layout, raw); err == nil {
+				return parsed.UTC(), nil
+			}
+		}
+		return time.Time{}, fmt.Errorf("cannot parse %q as timestamp", raw)
+	case int:
+		return time.Unix(int64(typed), 0).UTC(), nil
+	case int64:
+		return time.Unix(typed, 0).UTC(), nil
+	case float64:
+		return time.Unix(int64(typed), 0).UTC(), nil
+	case json.Number:
+		unix, err := typed.Int64()
+		if err != nil {
+			return time.Time{}, fmt.Errorf("cannot parse %q as unix seconds: %w", typed, err)
+		}
+		return time.Unix(unix, 0).UTC(), nil
+	default:
+		return time.Time{}, fmt.Errorf("value %v (%T) is not a timestamp", value, value)
 	}
 }

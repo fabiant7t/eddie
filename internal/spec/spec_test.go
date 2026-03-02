@@ -203,6 +203,16 @@ func TestParseProbeRejectsUnknownExtractRef(t *testing.T) {
 	}
 }
 
+func TestParseProbeWithJSONPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "probe-json-path.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\nprobe:\n  name: dms-freshness\n  requests:\n    - id: dms\n      url: https://example.com/dms.json\n  extracts:\n    - id: age\n      from: dms\n      source:\n        type: json_path\n        key: $.updated\n      transforms:\n        - age_seconds\n  asserts:\n    - id: age-check\n      op: lte\n      left:\n        ref: age\n      right:\n        value: 600\n")
+
+	_, err := Parse(path)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+}
+
 func TestParseRejectsEmptyHTTPMailReceiver(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "empty-http-mail-receiver.yaml")
 	writeSpecFile(t, path, "---\nversion: 1\nhttp:\n  name: foo\n  method: GET\n  url: http://example.com\n  mail_receivers:\n    - ops@example.com\n    - \"  \"\n")

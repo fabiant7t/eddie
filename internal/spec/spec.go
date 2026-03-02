@@ -447,6 +447,10 @@ func validateProbeSpec(sourcePath string, probe *ProbeSpec) error {
 			if strings.TrimSpace(ex.Source.Key) == "" {
 				return fmt.Errorf("spec in %q has empty probe.extracts[%d].source.key for header source", sourcePath, idx)
 			}
+		case "json_path":
+			if strings.TrimSpace(ex.Source.Key) == "" {
+				return fmt.Errorf("spec in %q has empty probe.extracts[%d].source.key for json_path source", sourcePath, idx)
+			}
 		case "body", "json":
 		default:
 			return fmt.Errorf("spec in %q has unsupported probe.extracts[%d].source.type %q", sourcePath, idx, sourceType)

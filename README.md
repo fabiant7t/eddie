@@ -275,11 +275,11 @@ probe:
 - `probe.extracts` (required)  
   Defines extracted values from request results.
 - `probe.extracts[*].source.type`  
-  One of `header`, `body`, `json`.
+  One of `header`, `body`, `json`, `json_path`.
 - `probe.extracts[*].source.key`  
-  Required when `source.type` is `header`.
+  Required when `source.type` is `header` or `json_path`. For `json_path`, use dot path like `$.updated`.
 - `probe.extracts[*].transforms`  
-  Optional ordered transforms. Supported: `trim_space`, `strip_quotes`, `lowercase`, `as_int`.
+  Optional ordered transforms. Supported: `trim_space`, `strip_quotes`, `lowercase`, `as_int`, `age_seconds`.
 - `probe.asserts` (required)  
   Assertion list over extracted values.
 - `probe.asserts[*].op`  
