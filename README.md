@@ -187,15 +187,15 @@ probe:
 ---
 version: 1
 s3:
-  name: mapodcast-hourly-logs
+  name: publisher-hourly-logs
   every_cycles: 60
   endpoint: https://s3.eu-central-1.amazonaws.com
   region: eu-central-1
   auth:
     mode: env
   list:
-    bucket: mapodcast-svmaudio
-    prefix: "lage-der-nation/lage-der-nation_{utc_hour_minus_1}"
+    bucket: publisher-analytics-logs
+    prefix: "news-podcast/news-podcast_{utc_hour_minus_1}"
     timeout: 5s
     expect:
       count_gte: 1

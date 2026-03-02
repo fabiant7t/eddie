@@ -11,7 +11,7 @@ import (
 
 func TestValidateHTTPSpecSupportsHostHeaderAndLocationContains(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != "monit-test.cdn.svmaudio.com" {
+		if r.Host != "monit-test.cdn.example.com" {
 			http.Error(w, "unexpected host", http.StatusBadRequest)
 			return
 		}
@@ -31,7 +31,7 @@ func TestValidateHTTPSpecSupportsHostHeaderAndLocationContains(t *testing.T) {
 			FollowRedirects: false,
 			URL:             server.URL + "/episode-002.mp3",
 			Headers: map[string]string{
-				"Host":       "monit-test.cdn.svmaudio.com",
+				"Host":       "monit-test.cdn.example.com",
 				"User-Agent": "asap-monit-test",
 			},
 			Expect: spec.HTTPExpect{
