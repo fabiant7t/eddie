@@ -28,8 +28,10 @@ type HTTPSpec struct {
 	Name            string            `yaml:"name"`
 	Method          string            `yaml:"method"`
 	FollowRedirects bool              `yaml:"follow_redirects"`
+	InsecureSkipTLS bool              `yaml:"insecure_skip_verify"`
 	URL             string            `yaml:"url"`
 	Args            map[string]string `yaml:"args"`
+	Headers         map[string]string `yaml:"headers"`
 	Timeout         time.Duration     `yaml:"timeout"`
 	Expect          HTTPExpect        `yaml:"expect"`
 	Cycles          SpecCycles        `yaml:"cycles"`
@@ -103,9 +105,11 @@ func (s Spec) ID() string {
 
 // HTTPExpect defines expected HTTP response checks.
 type HTTPExpect struct {
-	Code   int               `yaml:"code"`
-	Header map[string]string `yaml:"header"`
-	Body   HTTPExpectBody    `yaml:"body"`
+	Code           int               `yaml:"code"`
+	CodeAnyOf      []int             `yaml:"code_any_of"`
+	Header         map[string]string `yaml:"header"`
+	HeaderContains map[string]string `yaml:"header_contains"`
+	Body           HTTPExpectBody    `yaml:"body"`
 }
 
 // HTTPExpectBody defines expected HTTP response body checks.

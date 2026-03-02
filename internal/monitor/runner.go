@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log/slog"
@@ -320,9 +321,19 @@ func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
+	for headerName, value := range parsedSpec.HTTP.Headers {
+		if strings.EqualFold(headerName, "host") {
+			req.Host = value
+			continue
+		}
+		req.Header.Set(headerName, value)
+	}
 
-	client := &nethttp.Client{
-		Timeout: reqTimeout,
+	client := &nethttp.Client{Timeout: reqTimeout}
+	if parsedSpec.HTTP.InsecureSkipTLS {
+		client.Transport = &nethttp.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
 	}
 	if !parsedSpec.HTTP.FollowRedirects {
 		client.CheckRedirect = func(_ *nethttp.Request, _ []*nethttp.Request) error {
@@ -345,11 +356,20 @@ func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
 	if parsedSpec.HTTP.Expect.Code > 0 && resp.StatusCode != parsedSpec.HTTP.Expect.Code {
 		return fmt.Errorf("unexpected status code: got %d, want %d", resp.StatusCode, parsedSpec.HTTP.Expect.Code)
 	}
+	if len(parsedSpec.HTTP.Expect.CodeAnyOf) > 0 && !containsStatusCode(parsedSpec.HTTP.Expect.CodeAnyOf, resp.StatusCode) {
+		return fmt.Errorf("unexpected status code: got %d, want one of %v", resp.StatusCode, parsedSpec.HTTP.Expect.CodeAnyOf)
+	}
 
 	for headerName, expectedValue := range parsedSpec.HTTP.Expect.Header {
 		actualValue := resp.Header.Get(headerName)
 		if actualValue != expectedValue {
 			return fmt.Errorf("unexpected header %q: got %q, want %q", headerName, actualValue, expectedValue)
+		}
+	}
+	for headerName, expectedSubstring := range parsedSpec.HTTP.Expect.HeaderContains {
+		actualValue := resp.Header.Get(headerName)
+		if !strings.Contains(actualValue, expectedSubstring) {
+			return fmt.Errorf("unexpected header %q: got %q, want substring %q", headerName, actualValue, expectedSubstring)
 		}
 	}
 
@@ -361,6 +381,15 @@ func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
 	}
 
 	return nil
+}
+
+func containsStatusCode(codes []int, statusCode int) bool {
+	for _, code := range codes {
+		if statusCode == code {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {

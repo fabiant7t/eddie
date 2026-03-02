@@ -157,16 +157,24 @@ tls:
   HTTP method. Defaults to `GET` when empty.
 - `http.follow_redirects`  
   Controls redirect behavior. Defaults to `false`.
+- `http.insecure_skip_verify`  
+  When `true`, skips TLS certificate verification for HTTPS requests. Defaults to `false`.
 - `http.url` (required)  
   Must contain scheme and host (for example `https://example.com/path`).
 - `http.args`  
   Optional query parameters map. Keys overwrite same-name query params in `url`.
+- `http.headers`  
+  Optional request headers map. `Host` is supported and mapped to the request host override.
 - `http.timeout`  
   Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
 - `http.expect.code`  
   Optional expected HTTP status code.
+- `http.expect.code_any_of`  
+  Optional list of acceptable HTTP status codes.
 - `http.expect.header`  
   Optional map of response headers that must match exactly.
+- `http.expect.header_contains`  
+  Optional map of response headers that must contain the configured substring value.
 - `http.expect.body.exact`  
   Optional exact body match.
 - `http.expect.body.contains`  
