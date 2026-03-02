@@ -176,3 +176,21 @@ func TestMergedMailRecipients(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldRunSpecInCycle(t *testing.T) {
+	always := spec.Spec{HTTP: &spec.HTTPSpec{Name: "always"}}
+	if !shouldRunSpecInCycle(always, 1) {
+		t.Fatalf("spec without every_cycles should run on cycle 1")
+	}
+
+	everyThree := spec.Spec{Probe: &spec.ProbeSpec{Name: "probe", EveryCycles: 3}}
+	if shouldRunSpecInCycle(everyThree, 1) {
+		t.Fatalf("every_cycles=3 should not run on cycle 1")
+	}
+	if shouldRunSpecInCycle(everyThree, 2) {
+		t.Fatalf("every_cycles=3 should not run on cycle 2")
+	}
+	if !shouldRunSpecInCycle(everyThree, 3) {
+		t.Fatalf("every_cycles=3 should run on cycle 3")
+	}
+}

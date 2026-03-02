@@ -20,6 +20,7 @@ type Spec struct {
 	HTTP       *HTTPSpec  `yaml:"http"`
 	TLS        *TLSSpec   `yaml:"tls"`
 	Probe      *ProbeSpec `yaml:"probe"`
+	S3         *S3Spec    `yaml:"s3"`
 	SourcePath string     `yaml:"-"`
 }
 
@@ -27,6 +28,7 @@ type Spec struct {
 type HTTPSpec struct {
 	Disabled        bool              `yaml:"disabled"`
 	Name            string            `yaml:"name"`
+	EveryCycles     int               `yaml:"every_cycles"`
 	Method          string            `yaml:"method"`
 	FollowRedirects bool              `yaml:"follow_redirects"`
 	InsecureSkipTLS bool              `yaml:"insecure_skip_verify"`
@@ -45,6 +47,7 @@ type HTTPSpec struct {
 type TLSSpec struct {
 	Disabled         bool          `yaml:"disabled"`
 	Name             string        `yaml:"name"`
+	EveryCycles      int           `yaml:"every_cycles"`
 	Host             string        `yaml:"host"`
 	Port             int           `yaml:"port"`
 	ServerName       string        `yaml:"server_name"`
@@ -63,6 +66,7 @@ type TLSSpec struct {
 type ProbeSpec struct {
 	Disabled      bool           `yaml:"disabled"`
 	Name          string         `yaml:"name"`
+	EveryCycles   int            `yaml:"every_cycles"`
 	Requests      []ProbeRequest `yaml:"requests"`
 	Extracts      []ProbeExtract `yaml:"extracts"`
 	Asserts       []ProbeAssert  `yaml:"asserts"`
@@ -70,6 +74,46 @@ type ProbeSpec struct {
 	Cycles        SpecCycles     `yaml:"cycles"`
 	OnFailure     string         `yaml:"on_failure"`
 	OnResolved    string         `yaml:"on_resolved"`
+}
+
+// S3Spec defines native S3/S3-compatible checks.
+type S3Spec struct {
+	Disabled      bool        `yaml:"disabled"`
+	Name          string      `yaml:"name"`
+	EveryCycles   int         `yaml:"every_cycles"`
+	Endpoint      string      `yaml:"endpoint"`
+	Region        string      `yaml:"region"`
+	PathStyle     bool        `yaml:"path_style"`
+	Auth          S3AuthSpec  `yaml:"auth"`
+	List          *S3ListSpec `yaml:"list"`
+	MailReceivers []string    `yaml:"mail_receivers"`
+	Cycles        SpecCycles  `yaml:"cycles"`
+	OnFailure     string      `yaml:"on_failure"`
+	OnResolved    string      `yaml:"on_resolved"`
+}
+
+// S3AuthSpec configures credentials source for S3 checks.
+type S3AuthSpec struct {
+	Mode            string `yaml:"mode"`
+	AccessKeyID     string `yaml:"access_key_id"`
+	SecretAccessKey string `yaml:"secret_access_key"`
+	SessionToken    string `yaml:"session_token"`
+}
+
+// S3ListSpec configures object listing checks.
+type S3ListSpec struct {
+	Bucket  string        `yaml:"bucket"`
+	Prefix  string        `yaml:"prefix"`
+	MaxKeys int32         `yaml:"max_keys"`
+	Timeout time.Duration `yaml:"timeout"`
+	Expect  S3ListExpect  `yaml:"expect"`
+}
+
+// S3ListExpect defines list-based assertions.
+type S3ListExpect struct {
+	CountGT  *int `yaml:"count_gt"`
+	CountGTE *int `yaml:"count_gte"`
+	CountEQ  *int `yaml:"count_eq"`
 }
 
 // ProbeRequest defines one HTTP request executed by a probe.
@@ -123,6 +167,8 @@ func (s Spec) IsActive() bool {
 		return !s.TLS.Disabled
 	case s.Probe != nil:
 		return !s.Probe.Disabled
+	case s.S3 != nil:
+		return !s.S3.Disabled
 	default:
 		return false
 	}
@@ -137,6 +183,8 @@ func (s Spec) Kind() string {
 		return "tls"
 	case s.Probe != nil:
 		return "probe"
+	case s.S3 != nil:
+		return "s3"
 	default:
 		return "unknown"
 	}
@@ -151,6 +199,8 @@ func (s Spec) Name() string {
 		return s.TLS.Name
 	case s.Probe != nil:
 		return s.Probe.Name
+	case s.S3 != nil:
+		return s.S3.Name
 	default:
 		return ""
 	}
@@ -326,8 +376,11 @@ func validateSpecNames(specs []Spec) error {
 		if sp.Probe != nil {
 			definedKinds++
 		}
+		if sp.S3 != nil {
+			definedKinds++
+		}
 		if definedKinds != 1 {
-			return fmt.Errorf("spec in %q must define exactly one of http, tls, or probe", sp.SourcePath)
+			return fmt.Errorf("spec in %q must define exactly one of http, tls, probe, or s3", sp.SourcePath)
 		}
 
 		switch {
@@ -335,6 +388,9 @@ func validateSpecNames(specs []Spec) error {
 			name := strings.TrimSpace(sp.HTTP.Name)
 			if name == "" {
 				return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
+			}
+			if err := validateEveryCycles(sp.SourcePath, "http", sp.HTTP.EveryCycles); err != nil {
+				return err
 			}
 			if err := validateMailReceivers(sp.SourcePath, "http", sp.HTTP.MailReceivers); err != nil {
 				return err
@@ -349,6 +405,9 @@ func validateSpecNames(specs []Spec) error {
 			name := strings.TrimSpace(sp.TLS.Name)
 			if name == "" {
 				return fmt.Errorf("spec in %q has empty tls.name", sp.SourcePath)
+			}
+			if err := validateEveryCycles(sp.SourcePath, "tls", sp.TLS.EveryCycles); err != nil {
+				return err
 			}
 			if sp.TLS.CertMinDaysValid != nil && *sp.TLS.CertMinDaysValid < 0 {
 				return fmt.Errorf("spec in %q has negative tls.cert_min_days_valid", sp.SourcePath)
@@ -367,6 +426,9 @@ func validateSpecNames(specs []Spec) error {
 			if name == "" {
 				return fmt.Errorf("spec in %q has empty probe.name", sp.SourcePath)
 			}
+			if err := validateEveryCycles(sp.SourcePath, "probe", sp.Probe.EveryCycles); err != nil {
+				return err
+			}
 			if err := validateMailReceivers(sp.SourcePath, "probe", sp.Probe.MailReceivers); err != nil {
 				return err
 			}
@@ -379,9 +441,36 @@ func validateSpecNames(specs []Spec) error {
 				return fmt.Errorf("duplicate probe.name %q found in %q and %q", name, firstSource, sp.SourcePath)
 			}
 			seen[identity] = sp.SourcePath
+		case sp.S3 != nil:
+			name := strings.TrimSpace(sp.S3.Name)
+			if name == "" {
+				return fmt.Errorf("spec in %q has empty s3.name", sp.SourcePath)
+			}
+			if err := validateEveryCycles(sp.SourcePath, "s3", sp.S3.EveryCycles); err != nil {
+				return err
+			}
+			if err := validateMailReceivers(sp.SourcePath, "s3", sp.S3.MailReceivers); err != nil {
+				return err
+			}
+			if err := validateS3Spec(sp.SourcePath, sp.S3); err != nil {
+				return err
+			}
+
+			identity := "s3:" + name
+			if firstSource, ok := seen[identity]; ok {
+				return fmt.Errorf("duplicate s3.name %q found in %q and %q", name, firstSource, sp.SourcePath)
+			}
+			seen[identity] = sp.SourcePath
 		}
 	}
 
+	return nil
+}
+
+func validateEveryCycles(sourcePath, kind string, everyCycles int) error {
+	if everyCycles < 0 {
+		return fmt.Errorf("spec in %q has negative %s.every_cycles", sourcePath, kind)
+	}
 	return nil
 }
 
@@ -510,5 +599,62 @@ func validateProbeOperand(sourcePath string, extractIDs map[string]struct{}, ope
 			return fmt.Errorf("spec in %q references unknown probe extract %q in %s.ref", sourcePath, ref, fieldPath)
 		}
 	}
+	return nil
+}
+
+func validateS3Spec(sourcePath string, s3Spec *S3Spec) error {
+	if s3Spec == nil {
+		return fmt.Errorf("spec in %q has nil s3", sourcePath)
+	}
+	if s3Spec.List == nil {
+		return fmt.Errorf("spec in %q must define s3.list", sourcePath)
+	}
+	list := s3Spec.List
+	if strings.TrimSpace(list.Bucket) == "" {
+		return fmt.Errorf("spec in %q has empty s3.list.bucket", sourcePath)
+	}
+	if list.MaxKeys < 0 {
+		return fmt.Errorf("spec in %q has negative s3.list.max_keys", sourcePath)
+	}
+	expectDefined := 0
+	if list.Expect.CountGT != nil {
+		if *list.Expect.CountGT < 0 {
+			return fmt.Errorf("spec in %q has negative s3.list.expect.count_gt", sourcePath)
+		}
+		expectDefined++
+	}
+	if list.Expect.CountGTE != nil {
+		if *list.Expect.CountGTE < 0 {
+			return fmt.Errorf("spec in %q has negative s3.list.expect.count_gte", sourcePath)
+		}
+		expectDefined++
+	}
+	if list.Expect.CountEQ != nil {
+		if *list.Expect.CountEQ < 0 {
+			return fmt.Errorf("spec in %q has negative s3.list.expect.count_eq", sourcePath)
+		}
+		expectDefined++
+	}
+	if expectDefined == 0 {
+		return fmt.Errorf("spec in %q must define one s3.list.expect assertion", sourcePath)
+	}
+	if expectDefined > 1 {
+		return fmt.Errorf("spec in %q must define only one s3.list.expect assertion", sourcePath)
+	}
+
+	authMode := strings.TrimSpace(strings.ToLower(s3Spec.Auth.Mode))
+	switch authMode {
+	case "", "env", "role":
+	case "static":
+		if strings.TrimSpace(s3Spec.Auth.AccessKeyID) == "" {
+			return fmt.Errorf("spec in %q requires s3.auth.access_key_id for static auth", sourcePath)
+		}
+		if strings.TrimSpace(s3Spec.Auth.SecretAccessKey) == "" {
+			return fmt.Errorf("spec in %q requires s3.auth.secret_access_key for static auth", sourcePath)
+		}
+	default:
+		return fmt.Errorf("spec in %q has unsupported s3.auth.mode %q", sourcePath, s3Spec.Auth.Mode)
+	}
+
 	return nil
 }

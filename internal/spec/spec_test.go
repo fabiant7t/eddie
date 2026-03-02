@@ -213,6 +213,42 @@ func TestParseProbeWithJSONPath(t *testing.T) {
 	}
 }
 
+func TestParseS3Name(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s3.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\ns3:\n  name: logs-check\n  endpoint: https://s3.example.com\n  path_style: true\n  auth:\n    mode: static\n    access_key_id: foo\n    secret_access_key: bar\n  list:\n    bucket: logs\n    prefix: app/\n    expect:\n      count_gte: 1\n")
+
+	specs, err := Parse(path)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("len(specs) = %d, want %d", len(specs), 1)
+	}
+	if specs[0].Name() != "logs-check" || specs[0].Kind() != "s3" {
+		t.Fatalf("unexpected spec identity: %q/%q", specs[0].Kind(), specs[0].Name())
+	}
+}
+
+func TestParseRejectsNegativeEveryCycles(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "negative-every-cycles.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\ns3:\n  name: logs-check\n  every_cycles: -1\n  list:\n    bucket: logs\n    expect:\n      count_gte: 1\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
+func TestParseRejectsS3StaticAuthWithoutSecret(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s3-static-auth.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\ns3:\n  name: logs-check\n  auth:\n    mode: static\n    access_key_id: foo\n  list:\n    bucket: logs\n    expect:\n      count_gte: 1\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
 func TestParseRejectsEmptyHTTPMailReceiver(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "empty-http-mail-receiver.yaml")
 	writeSpecFile(t, path, "---\nversion: 1\nhttp:\n  name: foo\n  method: GET\n  url: http://example.com\n  mail_receivers:\n    - ops@example.com\n    - \"  \"\n")

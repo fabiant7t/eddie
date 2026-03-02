@@ -34,14 +34,14 @@ func TestValidateProbeSpecETagEqualsMD5WithCachebuster(t *testing.T) {
 				{
 					ID:     "left",
 					Method: http.MethodHead,
-					URL:    left.URL + "/hd-main.js",
+					URL:    left.URL + "/asset.js",
 					Args: map[string]string{
 						"cachebuster": "{unix_ts}",
 					},
 				},
 				{
 					ID:  "right",
-					URL: right.URL + "/hd-main.js.md5",
+					URL: right.URL + "/asset.js.md5",
 				},
 			},
 			Extracts: []spec.ProbeExtract{
@@ -148,7 +148,7 @@ func TestValidateProbeSpecHeaderNumericAndStringAsserts(t *testing.T) {
 				{
 					ID:              "asset",
 					Method:          http.MethodHead,
-					URL:             server.URL + "/hd-main.js",
+					URL:             server.URL + "/asset.js",
 					FollowRedirects: false,
 				},
 			},

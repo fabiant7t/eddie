@@ -34,6 +34,7 @@ type Runner struct {
 	stateStore     state.Store
 	mailService    *mail.Service
 	mailRecipients []string
+	cycleNumber    uint64
 }
 
 // NewRunner creates a monitoring runner.
@@ -71,9 +72,15 @@ func (r *Runner) Run(ctx context.Context) {
 }
 
 func (r *Runner) runCycle(ctx context.Context) {
+	r.cycleNumber++
+	currentCycle := r.cycleNumber
+
 	var wg sync.WaitGroup
 	for _, parsedSpec := range r.specs {
 		if !parsedSpec.IsActive() {
+			continue
+		}
+		if !shouldRunSpecInCycle(parsedSpec, currentCycle) {
 			continue
 		}
 
@@ -86,6 +93,14 @@ func (r *Runner) runCycle(ctx context.Context) {
 		})
 	}
 	wg.Wait()
+}
+
+func shouldRunSpecInCycle(parsedSpec spec.Spec, cycleNumber uint64) bool {
+	everyCycles := specEveryCycles(parsedSpec)
+	if everyCycles <= 1 {
+		return true
+	}
+	return cycleNumber%uint64(everyCycles) == 0
 }
 
 func (r *Runner) markCycleStarted(parsedSpec spec.Spec, cycleStartedAt time.Time) {
@@ -251,8 +266,25 @@ func specCycles(parsedSpec spec.Spec) spec.SpecCycles {
 		return parsedSpec.TLS.Cycles
 	case parsedSpec.Probe != nil:
 		return parsedSpec.Probe.Cycles
+	case parsedSpec.S3 != nil:
+		return parsedSpec.S3.Cycles
 	default:
 		return spec.SpecCycles{}
+	}
+}
+
+func specEveryCycles(parsedSpec spec.Spec) int {
+	switch {
+	case parsedSpec.HTTP != nil:
+		return parsedSpec.HTTP.EveryCycles
+	case parsedSpec.TLS != nil:
+		return parsedSpec.TLS.EveryCycles
+	case parsedSpec.Probe != nil:
+		return parsedSpec.Probe.EveryCycles
+	case parsedSpec.S3 != nil:
+		return parsedSpec.S3.EveryCycles
+	default:
+		return 0
 	}
 }
 
@@ -264,6 +296,8 @@ func specOnFailure(parsedSpec spec.Spec) string {
 		return parsedSpec.TLS.OnFailure
 	case parsedSpec.Probe != nil:
 		return parsedSpec.Probe.OnFailure
+	case parsedSpec.S3 != nil:
+		return parsedSpec.S3.OnFailure
 	default:
 		return ""
 	}
@@ -277,6 +311,8 @@ func specOnResolved(parsedSpec spec.Spec) string {
 		return parsedSpec.TLS.OnResolved
 	case parsedSpec.Probe != nil:
 		return parsedSpec.Probe.OnResolved
+	case parsedSpec.S3 != nil:
+		return parsedSpec.S3.OnResolved
 	default:
 		return ""
 	}
@@ -290,6 +326,8 @@ func specMailReceivers(parsedSpec spec.Spec) []string {
 		return parsedSpec.TLS.MailReceivers
 	case parsedSpec.Probe != nil:
 		return parsedSpec.Probe.MailReceivers
+	case parsedSpec.S3 != nil:
+		return parsedSpec.S3.MailReceivers
 	default:
 		return nil
 	}
@@ -303,6 +341,8 @@ func validateSpec(ctx context.Context, parsedSpec spec.Spec) error {
 		return validateTLSSpec(ctx, parsedSpec)
 	case "probe":
 		return validateProbeSpec(ctx, parsedSpec)
+	case "s3":
+		return validateS3Spec(ctx, parsedSpec)
 	default:
 		return fmt.Errorf("unknown spec type")
 	}

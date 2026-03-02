@@ -151,15 +151,15 @@ tls:
 ---
 version: 1
 probe:
-  name: hd-main-checksum-match
+  name: asset-checksum-match
   requests:
     - id: left
       method: HEAD
-      url: http://hgcorigin.svonm.com/hd-main.js
+      url: http://origin.example.com/asset.js
       args:
         cachebuster: "{unix_ts}"
     - id: right
-      url: http://preview.schneevonmorgen.com/hd-main.js.md5
+      url: http://cdn-preview.example.com/asset.js.md5
   extracts:
     - id: left_etag
       from: left
@@ -181,12 +181,37 @@ probe:
         ref: right_md5
 ```
 
+### S3 Example
+
+```yaml
+---
+version: 1
+s3:
+  name: mapodcast-hourly-logs
+  every_cycles: 60
+  endpoint: https://s3.eu-central-1.amazonaws.com
+  region: eu-central-1
+  auth:
+    mode: env
+  list:
+    bucket: mapodcast-svmaudio
+    prefix: "lage-der-nation/lage-der-nation_{utc_hour_minus_1}"
+    timeout: 5s
+    expect:
+      count_gte: 1
+  cycles:
+    failure: 2
+    success: 1
+```
+
 ### Field Reference
 
 - `version`  
   Spec version field. Current examples use `1`.
 - `http.name` (required)  
   Unique ID for the check (`http.name` must be unique across all parsed HTTP specs).
+- `http.every_cycles`  
+  Optional cycle interval for this check. `1` (or omitted) means every cycle, `60` means every 60th cycle.
 - `http.disabled`  
   Defaults to `false`; when `true`, the spec is parsed but not executed.
 - `http.method`  
@@ -228,6 +253,8 @@ probe:
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 - `tls.name` (required)  
   Unique ID for the TLS check (`tls.name` must be unique across all parsed TLS specs).
+- `tls.every_cycles`  
+  Optional cycle interval for this check. `1` (or omitted) means every cycle.
 - `tls.disabled`  
   Defaults to `false`; when `true`, the spec is parsed but not executed.
 - `tls.host` (required)  
@@ -258,6 +285,8 @@ probe:
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 - `probe.name` (required)  
   Unique ID for the probe check (`probe.name` must be unique across all parsed probe specs).
+- `probe.every_cycles`  
+  Optional cycle interval for this check. `1` (or omitted) means every cycle.
 - `probe.requests` (required)  
   List of HTTP requests used by the probe. Each request needs a unique `id` and a `url`.
 - `probe.requests[*].method`  
@@ -298,6 +327,46 @@ probe:
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `probe.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+- `s3.name` (required)  
+  Unique ID for the S3 check (`s3.name` must be unique across all parsed S3 specs).
+- `s3.disabled`  
+  Defaults to `false`; when `true`, the spec is parsed but not executed.
+- `s3.every_cycles`  
+  Optional cycle interval for this check. `1` (or omitted) means every cycle.
+- `s3.endpoint`  
+  Optional custom S3-compatible endpoint URL.
+- `s3.region`  
+  Optional region; defaults to `us-east-1` when empty.
+- `s3.path_style`  
+  Use path-style addressing when `true`.
+- `s3.auth.mode`  
+  One of `env`, `role`, or `static`. Defaults to `env`.
+- `s3.auth.access_key_id` / `s3.auth.secret_access_key`  
+  Required when `s3.auth.mode` is `static`.
+- `s3.auth.session_token`  
+  Optional session token for static credentials.
+- `s3.list` (required)  
+  Defines a list-objects check.
+- `s3.list.bucket` (required)  
+  Bucket name to list.
+- `s3.list.prefix`  
+  Optional key prefix. Supports `{utc_hour_minus_1}` and `{utc_hour}` templates.
+- `s3.list.max_keys`  
+  Optional limit for listed keys.
+- `s3.list.timeout`  
+  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+- `s3.list.expect.count_gt` / `count_gte` / `count_eq`  
+  Exactly one count assertion must be configured.
+- `s3.mail_receivers`  
+  Optional additional email recipients for this check. Global mail receivers still receive alerts.
+- `s3.cycles.failure`  
+  Consecutive failure threshold before entering failing state. Defaults to `1` when omitted/`<=0`.
+- `s3.cycles.success`  
+  Consecutive success threshold to recover from failing state. Defaults to `1` when omitted/`<=0`.
+- `s3.on_failure`  
+  Optional shell script executed asynchronously when the spec transitions to failing.
+- `s3.on_resolved`  
+  Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 
 ## Monitoring Semantics
 
@@ -326,4 +395,6 @@ probe:
 - `http.name` must be unique across all parsed HTTP specs.
 - `probe.name` is required and must not be empty.
 - `probe.name` must be unique across all parsed probe specs.
+- `s3.name` is required and must not be empty.
+- `s3.name` must be unique across all parsed s3 specs.
 - Uniqueness is scoped by check type (for future types): `http.name` and `foo.name` may share the same value.
