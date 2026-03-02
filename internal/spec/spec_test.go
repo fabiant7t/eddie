@@ -177,6 +177,32 @@ func TestParseTLSName(t *testing.T) {
 	}
 }
 
+func TestParseProbeName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "probe.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\nprobe:\n  name: compare-json\n  requests:\n    - id: a\n      url: https://example.com/a.json\n    - id: b\n      url: https://example.com/b.json\n  extracts:\n    - id: a_json\n      from: a\n      source:\n        type: json\n    - id: b_json\n      from: b\n      source:\n        type: json\n  asserts:\n    - id: same\n      op: all_equal\n      values:\n        - ref: a_json\n        - ref: b_json\n")
+
+	specs, err := Parse(path)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("len(specs) = %d, want %d", len(specs), 1)
+	}
+	if specs[0].Name() != "compare-json" || specs[0].Kind() != "probe" {
+		t.Fatalf("unexpected spec identity: %q/%q", specs[0].Kind(), specs[0].Name())
+	}
+}
+
+func TestParseProbeRejectsUnknownExtractRef(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "probe-bad-ref.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\nprobe:\n  name: compare-json\n  requests:\n    - id: a\n      url: https://example.com/a.json\n  extracts:\n    - id: a_json\n      from: a\n      source:\n        type: json\n  asserts:\n    - id: same\n      op: eq\n      left:\n        ref: a_json\n      right:\n        ref: missing\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
 func TestParseRejectsEmptyHTTPMailReceiver(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "empty-http-mail-receiver.yaml")
 	writeSpecFile(t, path, "---\nversion: 1\nhttp:\n  name: foo\n  method: GET\n  url: http://example.com\n  mail_receivers:\n    - ops@example.com\n    - \"  \"\n")

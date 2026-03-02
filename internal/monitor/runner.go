@@ -249,6 +249,8 @@ func specCycles(parsedSpec spec.Spec) spec.SpecCycles {
 		return parsedSpec.HTTP.Cycles
 	case parsedSpec.TLS != nil:
 		return parsedSpec.TLS.Cycles
+	case parsedSpec.Probe != nil:
+		return parsedSpec.Probe.Cycles
 	default:
 		return spec.SpecCycles{}
 	}
@@ -260,6 +262,8 @@ func specOnFailure(parsedSpec spec.Spec) string {
 		return parsedSpec.HTTP.OnFailure
 	case parsedSpec.TLS != nil:
 		return parsedSpec.TLS.OnFailure
+	case parsedSpec.Probe != nil:
+		return parsedSpec.Probe.OnFailure
 	default:
 		return ""
 	}
@@ -271,6 +275,8 @@ func specOnResolved(parsedSpec spec.Spec) string {
 		return parsedSpec.HTTP.OnResolved
 	case parsedSpec.TLS != nil:
 		return parsedSpec.TLS.OnResolved
+	case parsedSpec.Probe != nil:
+		return parsedSpec.Probe.OnResolved
 	default:
 		return ""
 	}
@@ -282,6 +288,8 @@ func specMailReceivers(parsedSpec spec.Spec) []string {
 		return parsedSpec.HTTP.MailReceivers
 	case parsedSpec.TLS != nil:
 		return parsedSpec.TLS.MailReceivers
+	case parsedSpec.Probe != nil:
+		return parsedSpec.Probe.MailReceivers
 	default:
 		return nil
 	}
@@ -293,6 +301,8 @@ func validateSpec(ctx context.Context, parsedSpec spec.Spec) error {
 		return validateHTTPSpec(ctx, parsedSpec)
 	case "tls":
 		return validateTLSSpec(ctx, parsedSpec)
+	case "probe":
+		return validateProbeSpec(ctx, parsedSpec)
 	default:
 		return fmt.Errorf("unknown spec type")
 	}

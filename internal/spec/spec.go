@@ -16,10 +16,11 @@ import (
 
 // Spec defines one test spec document.
 type Spec struct {
-	Version    int       `yaml:"version"`
-	HTTP       *HTTPSpec `yaml:"http"`
-	TLS        *TLSSpec  `yaml:"tls"`
-	SourcePath string    `yaml:"-"`
+	Version    int        `yaml:"version"`
+	HTTP       *HTTPSpec  `yaml:"http"`
+	TLS        *TLSSpec   `yaml:"tls"`
+	Probe      *ProbeSpec `yaml:"probe"`
+	SourcePath string     `yaml:"-"`
 }
 
 // HTTPSpec defines the HTTP test configuration.
@@ -58,6 +59,60 @@ type TLSSpec struct {
 	OnResolved       string        `yaml:"on_resolved"`
 }
 
+// ProbeSpec defines composable multi-request assertions.
+type ProbeSpec struct {
+	Disabled      bool           `yaml:"disabled"`
+	Name          string         `yaml:"name"`
+	Requests      []ProbeRequest `yaml:"requests"`
+	Extracts      []ProbeExtract `yaml:"extracts"`
+	Asserts       []ProbeAssert  `yaml:"asserts"`
+	MailReceivers []string       `yaml:"mail_receivers"`
+	Cycles        SpecCycles     `yaml:"cycles"`
+	OnFailure     string         `yaml:"on_failure"`
+	OnResolved    string         `yaml:"on_resolved"`
+}
+
+// ProbeRequest defines one HTTP request executed by a probe.
+type ProbeRequest struct {
+	ID              string            `yaml:"id"`
+	Method          string            `yaml:"method"`
+	URL             string            `yaml:"url"`
+	Args            map[string]string `yaml:"args"`
+	Headers         map[string]string `yaml:"headers"`
+	FollowRedirects bool              `yaml:"follow_redirects"`
+	InsecureSkipTLS bool              `yaml:"insecure_skip_verify"`
+	Timeout         time.Duration     `yaml:"timeout"`
+}
+
+// ProbeExtract defines a value extraction from one request result.
+type ProbeExtract struct {
+	ID         string      `yaml:"id"`
+	From       string      `yaml:"from"`
+	Source     ProbeSource `yaml:"source"`
+	Transforms []string    `yaml:"transforms"`
+}
+
+// ProbeSource defines where an extract reads from.
+type ProbeSource struct {
+	Type string `yaml:"type"`
+	Key  string `yaml:"key"`
+}
+
+// ProbeAssert defines one assertion over extracted values.
+type ProbeAssert struct {
+	ID     string         `yaml:"id"`
+	Op     string         `yaml:"op"`
+	Left   ProbeOperand   `yaml:"left"`
+	Right  ProbeOperand   `yaml:"right"`
+	Values []ProbeOperand `yaml:"values"`
+}
+
+// ProbeOperand is either a reference to an extract ID or a literal value.
+type ProbeOperand struct {
+	Ref   string `yaml:"ref"`
+	Value any    `yaml:"value"`
+}
+
 // IsActive reports whether the spec should be used.
 // Specs are active by default unless explicitly set to disabled: true.
 func (s Spec) IsActive() bool {
@@ -66,6 +121,8 @@ func (s Spec) IsActive() bool {
 		return !s.HTTP.Disabled
 	case s.TLS != nil:
 		return !s.TLS.Disabled
+	case s.Probe != nil:
+		return !s.Probe.Disabled
 	default:
 		return false
 	}
@@ -78,6 +135,8 @@ func (s Spec) Kind() string {
 		return "http"
 	case s.TLS != nil:
 		return "tls"
+	case s.Probe != nil:
+		return "probe"
 	default:
 		return "unknown"
 	}
@@ -90,6 +149,8 @@ func (s Spec) Name() string {
 		return s.HTTP.Name
 	case s.TLS != nil:
 		return s.TLS.Name
+	case s.Probe != nil:
+		return s.Probe.Name
 	default:
 		return ""
 	}
@@ -255,11 +316,18 @@ func isEmptyYAMLDocument(doc *yaml.Node) bool {
 func validateSpecNames(specs []Spec) error {
 	seen := make(map[string]string, len(specs))
 	for _, sp := range specs {
-		if sp.HTTP != nil && sp.TLS != nil {
-			return fmt.Errorf("spec in %q must define exactly one of http or tls", sp.SourcePath)
+		definedKinds := 0
+		if sp.HTTP != nil {
+			definedKinds++
 		}
-		if sp.HTTP == nil && sp.TLS == nil {
-			return fmt.Errorf("spec in %q must define exactly one of http or tls", sp.SourcePath)
+		if sp.TLS != nil {
+			definedKinds++
+		}
+		if sp.Probe != nil {
+			definedKinds++
+		}
+		if definedKinds != 1 {
+			return fmt.Errorf("spec in %q must define exactly one of http, tls, or probe", sp.SourcePath)
 		}
 
 		switch {
@@ -294,6 +362,23 @@ func validateSpecNames(specs []Spec) error {
 				return fmt.Errorf("duplicate tls.name %q found in %q and %q", name, firstSource, sp.SourcePath)
 			}
 			seen[identity] = sp.SourcePath
+		case sp.Probe != nil:
+			name := strings.TrimSpace(sp.Probe.Name)
+			if name == "" {
+				return fmt.Errorf("spec in %q has empty probe.name", sp.SourcePath)
+			}
+			if err := validateMailReceivers(sp.SourcePath, "probe", sp.Probe.MailReceivers); err != nil {
+				return err
+			}
+			if err := validateProbeSpec(sp.SourcePath, sp.Probe); err != nil {
+				return err
+			}
+
+			identity := "probe:" + name
+			if firstSource, ok := seen[identity]; ok {
+				return fmt.Errorf("duplicate probe.name %q found in %q and %q", name, firstSource, sp.SourcePath)
+			}
+			seen[identity] = sp.SourcePath
 		}
 	}
 
@@ -304,6 +389,121 @@ func validateMailReceivers(sourcePath, kind string, receivers []string) error {
 	for idx, receiver := range receivers {
 		if strings.TrimSpace(receiver) == "" {
 			return fmt.Errorf("spec in %q has empty %s.mail_receivers[%d]", sourcePath, kind, idx)
+		}
+	}
+	return nil
+}
+
+func validateProbeSpec(sourcePath string, probe *ProbeSpec) error {
+	if probe == nil {
+		return fmt.Errorf("spec in %q has nil probe", sourcePath)
+	}
+	if len(probe.Requests) == 0 {
+		return fmt.Errorf("spec in %q must define at least one probe.requests item", sourcePath)
+	}
+	if len(probe.Extracts) == 0 {
+		return fmt.Errorf("spec in %q must define at least one probe.extracts item", sourcePath)
+	}
+	if len(probe.Asserts) == 0 {
+		return fmt.Errorf("spec in %q must define at least one probe.asserts item", sourcePath)
+	}
+
+	requestIDs := make(map[string]struct{}, len(probe.Requests))
+	for idx, req := range probe.Requests {
+		id := strings.TrimSpace(req.ID)
+		if id == "" {
+			return fmt.Errorf("spec in %q has empty probe.requests[%d].id", sourcePath, idx)
+		}
+		if _, exists := requestIDs[id]; exists {
+			return fmt.Errorf("spec in %q has duplicate probe.requests.id %q", sourcePath, id)
+		}
+		requestIDs[id] = struct{}{}
+		if strings.TrimSpace(req.URL) == "" {
+			return fmt.Errorf("spec in %q has empty probe.requests[%d].url", sourcePath, idx)
+		}
+	}
+
+	extractIDs := make(map[string]struct{}, len(probe.Extracts))
+	for idx, ex := range probe.Extracts {
+		id := strings.TrimSpace(ex.ID)
+		if id == "" {
+			return fmt.Errorf("spec in %q has empty probe.extracts[%d].id", sourcePath, idx)
+		}
+		if _, exists := extractIDs[id]; exists {
+			return fmt.Errorf("spec in %q has duplicate probe.extracts.id %q", sourcePath, id)
+		}
+		extractIDs[id] = struct{}{}
+
+		from := strings.TrimSpace(ex.From)
+		if from == "" {
+			return fmt.Errorf("spec in %q has empty probe.extracts[%d].from", sourcePath, idx)
+		}
+		if _, exists := requestIDs[from]; !exists {
+			return fmt.Errorf("spec in %q references unknown probe request %q", sourcePath, from)
+		}
+		sourceType := strings.TrimSpace(ex.Source.Type)
+		switch sourceType {
+		case "header":
+			if strings.TrimSpace(ex.Source.Key) == "" {
+				return fmt.Errorf("spec in %q has empty probe.extracts[%d].source.key for header source", sourcePath, idx)
+			}
+		case "body", "json":
+		default:
+			return fmt.Errorf("spec in %q has unsupported probe.extracts[%d].source.type %q", sourcePath, idx, sourceType)
+		}
+	}
+
+	assertionIDs := make(map[string]struct{}, len(probe.Asserts))
+	for idx, assertion := range probe.Asserts {
+		assertID := strings.TrimSpace(assertion.ID)
+		if assertID == "" {
+			return fmt.Errorf("spec in %q has empty probe.asserts[%d].id", sourcePath, idx)
+		}
+		if _, exists := assertionIDs[assertID]; exists {
+			return fmt.Errorf("spec in %q has duplicate probe.asserts.id %q", sourcePath, assertID)
+		}
+		assertionIDs[assertID] = struct{}{}
+		op := strings.TrimSpace(assertion.Op)
+		switch op {
+		case "eq", "neq", "gt", "gte", "lt", "lte", "contains", "matches", "all_equal":
+		default:
+			return fmt.Errorf("spec in %q has unsupported probe.asserts[%d].op %q", sourcePath, idx, assertion.Op)
+		}
+		if op == "all_equal" {
+			if len(assertion.Values) < 2 {
+				return fmt.Errorf("spec in %q requires probe.asserts[%d].values with at least two operands for all_equal", sourcePath, idx)
+			}
+			for valueIdx, operand := range assertion.Values {
+				if err := validateProbeOperand(sourcePath, extractIDs, operand, fmt.Sprintf("probe.asserts[%d].values[%d]", idx, valueIdx)); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if len(assertion.Values) > 0 {
+			return fmt.Errorf("spec in %q does not allow probe.asserts[%d].values for op %q", sourcePath, idx, op)
+		}
+		if err := validateProbeOperand(sourcePath, extractIDs, assertion.Left, fmt.Sprintf("probe.asserts[%d].left", idx)); err != nil {
+			return err
+		}
+		if err := validateProbeOperand(sourcePath, extractIDs, assertion.Right, fmt.Sprintf("probe.asserts[%d].right", idx)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateProbeOperand(sourcePath string, extractIDs map[string]struct{}, operand ProbeOperand, fieldPath string) error {
+	ref := strings.TrimSpace(operand.Ref)
+	hasRef := ref != ""
+	hasValue := operand.Value != nil
+	if hasRef == hasValue {
+		return fmt.Errorf("spec in %q requires exactly one of %s.ref or %s.value", sourcePath, fieldPath, fieldPath)
+	}
+	if hasRef {
+		if _, exists := extractIDs[ref]; !exists {
+			return fmt.Errorf("spec in %q references unknown probe extract %q in %s.ref", sourcePath, ref, fieldPath)
 		}
 	}
 	return nil

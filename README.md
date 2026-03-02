@@ -145,6 +145,42 @@ tls:
     success: 1
 ```
 
+### Probe Example
+
+```yaml
+---
+version: 1
+probe:
+  name: hd-main-checksum-match
+  requests:
+    - id: left
+      method: HEAD
+      url: http://hgcorigin.svonm.com/hd-main.js
+      args:
+        cachebuster: "{unix_ts}"
+    - id: right
+      url: http://preview.schneevonmorgen.com/hd-main.js.md5
+  extracts:
+    - id: left_etag
+      from: left
+      source:
+        type: header
+        key: ETag
+      transforms: ["strip_quotes"]
+    - id: right_md5
+      from: right
+      source:
+        type: body
+      transforms: ["trim_space"]
+  asserts:
+    - id: checksum_equal
+      op: eq
+      left:
+        ref: left_etag
+      right:
+        ref: right_md5
+```
+
 ### Field Reference
 
 - `version`  
@@ -220,6 +256,48 @@ tls:
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `tls.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+- `probe.name` (required)  
+  Unique ID for the probe check (`probe.name` must be unique across all parsed probe specs).
+- `probe.requests` (required)  
+  List of HTTP requests used by the probe. Each request needs a unique `id` and a `url`.
+- `probe.requests[*].method`  
+  HTTP method. Defaults to `GET` when empty.
+- `probe.requests[*].args`  
+  Optional query parameters map. Supports `{unix_ts}` placeholder replacement.
+- `probe.requests[*].headers`  
+  Optional request headers map. `Host` is supported and mapped to request host override.
+- `probe.requests[*].follow_redirects`  
+  Controls redirect behavior. Defaults to `false`.
+- `probe.requests[*].insecure_skip_verify`  
+  When `true`, skips TLS certificate verification for HTTPS requests. Defaults to `false`.
+- `probe.requests[*].timeout`  
+  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+- `probe.extracts` (required)  
+  Defines extracted values from request results.
+- `probe.extracts[*].source.type`  
+  One of `header`, `body`, `json`.
+- `probe.extracts[*].source.key`  
+  Required when `source.type` is `header`.
+- `probe.extracts[*].transforms`  
+  Optional ordered transforms. Supported: `trim_space`, `strip_quotes`, `lowercase`, `as_int`.
+- `probe.asserts` (required)  
+  Assertion list over extracted values.
+- `probe.asserts[*].op`  
+  One of `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `matches`, `all_equal`.
+- `probe.asserts[*].left` / `probe.asserts[*].right`  
+  Used by all ops except `all_equal`. Each operand must define exactly one of `ref` or `value`.
+- `probe.asserts[*].values`  
+  Used by `all_equal`, must provide at least two operands.
+- `probe.mail_receivers`  
+  Optional additional email recipients for this check. Global mail receivers still receive alerts.
+- `probe.cycles.failure`  
+  Consecutive failure threshold before entering failing state. Defaults to `1` when omitted/`<=0`.
+- `probe.cycles.success`  
+  Consecutive success threshold to recover from failing state. Defaults to `1` when omitted/`<=0`.
+- `probe.on_failure`  
+  Optional shell script executed asynchronously when the spec transitions to failing.
+- `probe.on_resolved`  
+  Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 
 ## Monitoring Semantics
 
@@ -246,4 +324,6 @@ tls:
 
 - `http.name` is required and must not be empty.
 - `http.name` must be unique across all parsed HTTP specs.
+- `probe.name` is required and must not be empty.
+- `probe.name` must be unique across all parsed probe specs.
 - Uniqueness is scoped by check type (for future types): `http.name` and `foo.name` may share the same value.
