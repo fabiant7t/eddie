@@ -16,9 +16,10 @@ import (
 
 // Spec defines one test spec document.
 type Spec struct {
-	Version    int      `yaml:"version"`
-	HTTP       HTTPSpec `yaml:"http"`
-	SourcePath string   `yaml:"-"`
+	Version    int       `yaml:"version"`
+	HTTP       *HTTPSpec `yaml:"http"`
+	TLS        *TLSSpec  `yaml:"tls"`
+	SourcePath string    `yaml:"-"`
 }
 
 // HTTPSpec defines the HTTP test configuration.
@@ -36,10 +37,68 @@ type HTTPSpec struct {
 	OnResolved      string            `yaml:"on_resolved"`
 }
 
+// TLSSpec defines the TLS test configuration.
+type TLSSpec struct {
+	Disabled         bool          `yaml:"disabled"`
+	Name             string        `yaml:"name"`
+	Host             string        `yaml:"host"`
+	Port             int           `yaml:"port"`
+	ServerName       string        `yaml:"server_name"`
+	Verify           *bool         `yaml:"verify"`
+	RejectSelfSigned *bool         `yaml:"reject_selfsigned"`
+	MinVersion       string        `yaml:"min_version"`
+	Timeout          time.Duration `yaml:"timeout"`
+	CertMinDaysValid *int          `yaml:"cert_min_days_valid"`
+	Cycles           SpecCycles    `yaml:"cycles"`
+	OnFailure        string        `yaml:"on_failure"`
+	OnResolved       string        `yaml:"on_resolved"`
+}
+
 // IsActive reports whether the spec should be used.
 // Specs are active by default unless explicitly set to disabled: true.
 func (s Spec) IsActive() bool {
-	return !s.HTTP.Disabled
+	switch {
+	case s.HTTP != nil:
+		return !s.HTTP.Disabled
+	case s.TLS != nil:
+		return !s.TLS.Disabled
+	default:
+		return false
+	}
+}
+
+// Kind returns the spec type (http/tls).
+func (s Spec) Kind() string {
+	switch {
+	case s.HTTP != nil:
+		return "http"
+	case s.TLS != nil:
+		return "tls"
+	default:
+		return "unknown"
+	}
+}
+
+// Name returns the spec name regardless of type.
+func (s Spec) Name() string {
+	switch {
+	case s.HTTP != nil:
+		return s.HTTP.Name
+	case s.TLS != nil:
+		return s.TLS.Name
+	default:
+		return ""
+	}
+}
+
+// ID returns the stable identity for state tracking.
+func (s Spec) ID() string {
+	name := strings.TrimSpace(s.Name())
+	kind := s.Kind()
+	if name == "" || kind == "unknown" {
+		return ""
+	}
+	return kind + ":" + name
 }
 
 // HTTPExpect defines expected HTTP response checks.
@@ -190,16 +249,40 @@ func isEmptyYAMLDocument(doc *yaml.Node) bool {
 func validateSpecNames(specs []Spec) error {
 	seen := make(map[string]string, len(specs))
 	for _, sp := range specs {
-		name := strings.TrimSpace(sp.HTTP.Name)
-		if name == "" {
-			return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
+		if sp.HTTP != nil && sp.TLS != nil {
+			return fmt.Errorf("spec in %q must define exactly one of http or tls", sp.SourcePath)
+		}
+		if sp.HTTP == nil && sp.TLS == nil {
+			return fmt.Errorf("spec in %q must define exactly one of http or tls", sp.SourcePath)
 		}
 
-		identity := "http:" + name
-		if firstSource, ok := seen[identity]; ok {
-			return fmt.Errorf("duplicate http.name %q found in %q and %q", name, firstSource, sp.SourcePath)
+		switch {
+		case sp.HTTP != nil:
+			name := strings.TrimSpace(sp.HTTP.Name)
+			if name == "" {
+				return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
+			}
+
+			identity := "http:" + name
+			if firstSource, ok := seen[identity]; ok {
+				return fmt.Errorf("duplicate http.name %q found in %q and %q", name, firstSource, sp.SourcePath)
+			}
+			seen[identity] = sp.SourcePath
+		case sp.TLS != nil:
+			name := strings.TrimSpace(sp.TLS.Name)
+			if name == "" {
+				return fmt.Errorf("spec in %q has empty tls.name", sp.SourcePath)
+			}
+			if sp.TLS.CertMinDaysValid != nil && *sp.TLS.CertMinDaysValid < 0 {
+				return fmt.Errorf("spec in %q has negative tls.cert_min_days_valid", sp.SourcePath)
+			}
+
+			identity := "tls:" + name
+			if firstSource, ok := seen[identity]; ok {
+				return fmt.Errorf("duplicate tls.name %q found in %q and %q", name, firstSource, sp.SourcePath)
+			}
+			seen[identity] = sp.SourcePath
 		}
-		seen[identity] = sp.SourcePath
 	}
 
 	return nil

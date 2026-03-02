@@ -3,8 +3,8 @@ package http
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net"
@@ -49,6 +49,7 @@ type StatusSnapshot struct {
 // SpecStatus is one spec row rendered by /.
 type SpecStatus struct {
 	Name                 string
+	Type                 string
 	SourcePath           string
 	Disabled             bool
 	HasState             bool
@@ -61,6 +62,7 @@ type SpecStatus struct {
 
 type statusRow struct {
 	Name                 string `json:"name"`
+	Type                 string `json:"type"`
 	SourcePath           string `json:"source_path"`
 	Disabled             bool   `json:"disabled"`
 	HasState             bool   `json:"has_state"`
@@ -311,6 +313,7 @@ func buildStatusViewData(snapshot StatusSnapshot) statusViewData {
 
 		data.Rows = append(data.Rows, statusRow{
 			Name:                 specStatus.Name,
+			Type:                 specStatus.Type,
 			SourcePath:           specStatus.SourcePath,
 			Disabled:             specStatus.Disabled,
 			HasState:             specStatus.HasState,

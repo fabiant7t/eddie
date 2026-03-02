@@ -33,8 +33,8 @@ func TestParseRelativePathWithMultiDocument(t *testing.T) {
 	if len(specs) != 2 {
 		t.Fatalf("len(specs) = %d, want %d", len(specs), 2)
 	}
-	if specs[0].HTTP.Name != "first" || specs[1].HTTP.Name != "second" {
-		t.Fatalf("unexpected spec names: %q, %q", specs[0].HTTP.Name, specs[1].HTTP.Name)
+	if specs[0].Name() != "first" || specs[1].Name() != "second" {
+		t.Fatalf("unexpected spec names: %q, %q", specs[0].Name(), specs[1].Name())
 	}
 	if specs[0].SourcePath != absolutePath || specs[1].SourcePath != absolutePath {
 		t.Fatalf("unexpected source path: %q / %q", specs[0].SourcePath, specs[1].SourcePath)
@@ -58,8 +58,8 @@ func TestParseTildePath(t *testing.T) {
 	if len(specs) != 1 {
 		t.Fatalf("len(specs) = %d, want %d", len(specs), 1)
 	}
-	if specs[0].HTTP.Name != "tilde" {
-		t.Fatalf("spec name = %q, want %q", specs[0].HTTP.Name, "tilde")
+	if specs[0].Name() != "tilde" {
+		t.Fatalf("spec name = %q, want %q", specs[0].Name(), "tilde")
 	}
 }
 
@@ -74,8 +74,8 @@ func TestParseAbsolutePath(t *testing.T) {
 	if len(specs) != 1 {
 		t.Fatalf("len(specs) = %d, want %d", len(specs), 1)
 	}
-	if specs[0].HTTP.Name != "absolute" {
-		t.Fatalf("spec name = %q, want %q", specs[0].HTTP.Name, "absolute")
+	if specs[0].Name() != "absolute" {
+		t.Fatalf("spec name = %q, want %q", specs[0].Name(), "absolute")
 	}
 }
 
@@ -107,8 +107,8 @@ func TestParseGlobPath(t *testing.T) {
 	if len(specs) != 2 {
 		t.Fatalf("len(specs) = %d, want %d", len(specs), 2)
 	}
-	if specs[0].HTTP.Name != "a" || specs[1].HTTP.Name != "b" {
-		t.Fatalf("unexpected spec names: %q, %q", specs[0].HTTP.Name, specs[1].HTTP.Name)
+	if specs[0].Name() != "a" || specs[1].Name() != "b" {
+		t.Fatalf("unexpected spec names: %q, %q", specs[0].Name(), specs[1].Name())
 	}
 }
 
@@ -138,6 +138,42 @@ func TestParseRejectsEmptyName(t *testing.T) {
 	_, err := Parse(path)
 	if err == nil {
 		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
+func TestParseRejectsMissingType(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing-type.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
+func TestParseRejectsBothTypes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "both-types.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\nhttp:\n  name: foo\n  url: http://example.com\n  method: GET\ntls:\n  name: bar\n  host: example.com\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
+func TestParseTLSName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tls.yaml")
+	writeSpecFile(t, path, tlsDocSpecYAML("tls-name"))
+
+	specs, err := Parse(path)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(specs) != 1 {
+		t.Fatalf("len(specs) = %d, want %d", len(specs), 1)
+	}
+	if specs[0].Name() != "tls-name" || specs[0].Kind() != "tls" {
+		t.Fatalf("unexpected spec identity: %q/%q", specs[0].Kind(), specs[0].Name())
 	}
 }
 
@@ -181,4 +217,8 @@ func oneDocSpecYAML(name string) string {
 
 func twoDocSpecYAML() string {
 	return "---\nversion: 1\nhttp:\n  name: first\n  method: GET\n  url: http://example.com/one\n---\nversion: 1\nhttp:\n  name: second\n  method: GET\n  url: http://example.com/two\n"
+}
+
+func tlsDocSpecYAML(name string) string {
+	return "---\nversion: 1\ntls:\n  name: " + name + "\n  host: example.com\n"
 }

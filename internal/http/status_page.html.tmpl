@@ -120,6 +120,7 @@
           <thead>
             <tr>
               <th scope="col">Name</th>
+              <th scope="col">Type</th>
               <th scope="col">State</th>
               <th scope="col">Off</th>
               <th scope="col">State?</th>
@@ -134,6 +135,7 @@
             {{ range .Rows }}
             <tr>
               <td title="{{ .Name }}">{{ .Name }}</td>
+              <td>{{ .Type }}</td>
               <td><span class="{{ .StateClass }}">{{ .State }}</span></td>
               <td class="bool">{{ .Disabled }}</td>
               <td class="bool">{{ .HasState }}</td>
@@ -220,6 +222,7 @@
         rowsEl.textContent = "";
         rows.forEach((row) => {
           const name = String(row.name ?? "");
+          const type = String(row.type ?? "");
           const sourcePath = String(row.source_path ?? "");
           const state = String(row.state ?? "unknown");
           const disabled = String(Boolean(row.disabled));
@@ -237,6 +240,10 @@
           nameTd.title = name;
           nameTd.textContent = name;
           tr.appendChild(nameTd);
+
+          const typeTd = document.createElement("td");
+          typeTd.textContent = type;
+          tr.appendChild(typeTd);
 
           const stateTd = document.createElement("td");
           const stateSpan = document.createElement("span");

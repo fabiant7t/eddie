@@ -78,10 +78,9 @@ func (r *Runner) runCycle(ctx context.Context) {
 
 		parsedSpec := parsedSpec
 		wg.Go(func() {
-
 			cycleStartedAt := time.Now()
 			r.markCycleStarted(parsedSpec, cycleStartedAt)
-			checkErr := validateHTTPSpec(ctx, parsedSpec)
+			checkErr := validateSpec(ctx, parsedSpec)
 			r.handleCycleResult(parsedSpec, checkErr, cycleStartedAt)
 		})
 	}
@@ -89,20 +88,25 @@ func (r *Runner) runCycle(ctx context.Context) {
 }
 
 func (r *Runner) markCycleStarted(parsedSpec spec.Spec, cycleStartedAt time.Time) {
-	currentState, ok := r.stateStore.Get(parsedSpec.HTTP.Name)
+	specID := parsedSpec.ID()
+	currentState, ok := r.stateStore.Get(specID)
 	if !ok {
 		currentState = state.SpecState{Status: state.StatusHealthy}
 	}
 	currentState.LastCycleStartedAt = cycleStartedAt
-	r.stateStore.Set(parsedSpec.HTTP.Name, currentState)
+	r.stateStore.Set(specID, currentState)
 }
 
 func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleStartedAt time.Time) {
-	failureThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Failure, 1)
-	successThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Success, 1)
+	cycles := specCycles(parsedSpec)
+	failureThreshold := thresholdOrDefault(cycles.Failure, 1)
+	successThreshold := thresholdOrDefault(cycles.Success, 1)
 	cycleCompletedAt := time.Now()
+	specID := parsedSpec.ID()
+	specName := parsedSpec.Name()
+	specType := parsedSpec.Kind()
 
-	currentState, ok := r.stateStore.Get(parsedSpec.HTTP.Name)
+	currentState, ok := r.stateStore.Get(specID)
 	if !ok {
 		currentState = state.SpecState{Status: state.StatusHealthy}
 	}
@@ -117,7 +121,8 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleSt
 	)
 	if hasStateChanged(previousState, nextState) {
 		slog.Info("spec_state_changed",
-			"name", parsedSpec.HTTP.Name,
+			"name", specName,
+			"type", specType,
 			"source", parsedSpec.SourcePath,
 			"from_status", previousState.Status,
 			"to_status", nextState.Status,
@@ -129,19 +134,21 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleSt
 	}
 	nextState.LastCycleStartedAt = cycleStartedAt
 	nextState.LastCycleAt = cycleCompletedAt
-	r.stateStore.Set(parsedSpec.HTTP.Name, nextState)
+	r.stateStore.Set(specID, nextState)
 	took := cycleCompletedAt.Sub(cycleStartedAt)
 
 	if checkErr == nil {
 		slog.Debug("spec_ran",
-			"name", parsedSpec.HTTP.Name,
+			"name", specName,
+			"type", specType,
 			"result", "success",
 			"source", parsedSpec.SourcePath,
 			"took", took.String(),
 		)
 	} else {
 		slog.Debug("spec_ran",
-			"name", parsedSpec.HTTP.Name,
+			"name", specName,
+			"type", specType,
 			"result", "failure",
 			"source", parsedSpec.SourcePath,
 			"took", took.String(),
@@ -152,14 +159,16 @@ func (r *Runner) handleCycleResult(parsedSpec spec.Spec, checkErr error, cycleSt
 	switch transition {
 	case transitionFailure:
 		slog.Warn("spec_failed",
-			"name", parsedSpec.HTTP.Name,
+			"name", specName,
+			"type", specType,
 			"source", parsedSpec.SourcePath,
 			"error", checkErr,
 		)
 		r.triggerFailureActions(parsedSpec, checkErr)
 	case transitionRecovery:
 		slog.Info("spec_recovered",
-			"name", parsedSpec.HTTP.Name,
+			"name", specName,
+			"type", specType,
 			"source", parsedSpec.SourcePath,
 		)
 		r.triggerRecoveryActions(parsedSpec)
@@ -231,6 +240,50 @@ func thresholdOrDefault(value, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+func specCycles(parsedSpec spec.Spec) spec.SpecCycles {
+	switch {
+	case parsedSpec.HTTP != nil:
+		return parsedSpec.HTTP.Cycles
+	case parsedSpec.TLS != nil:
+		return parsedSpec.TLS.Cycles
+	default:
+		return spec.SpecCycles{}
+	}
+}
+
+func specOnFailure(parsedSpec spec.Spec) string {
+	switch {
+	case parsedSpec.HTTP != nil:
+		return parsedSpec.HTTP.OnFailure
+	case parsedSpec.TLS != nil:
+		return parsedSpec.TLS.OnFailure
+	default:
+		return ""
+	}
+}
+
+func specOnResolved(parsedSpec spec.Spec) string {
+	switch {
+	case parsedSpec.HTTP != nil:
+		return parsedSpec.HTTP.OnResolved
+	case parsedSpec.TLS != nil:
+		return parsedSpec.TLS.OnResolved
+	default:
+		return ""
+	}
+}
+
+func validateSpec(ctx context.Context, parsedSpec spec.Spec) error {
+	switch parsedSpec.Kind() {
+	case "http":
+		return validateHTTPSpec(ctx, parsedSpec)
+	case "tls":
+		return validateTLSSpec(ctx, parsedSpec)
+	default:
+		return fmt.Errorf("unknown spec type")
+	}
 }
 
 func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
@@ -311,38 +364,56 @@ func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
 }
 
 func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
-	if parsedSpec.HTTP.OnFailure != "" {
-		go runScript("on_failure", parsedSpec.HTTP.Name, parsedSpec.HTTP.OnFailure)
+	onFailure := specOnFailure(parsedSpec)
+	specName := parsedSpec.Name()
+	specType := parsedSpec.Kind()
+	specID := parsedSpec.ID()
+	if onFailure != "" {
+		go runScript("on_failure", specName, onFailure)
 	}
 
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := fmt.Sprintf("eddie failure: %s", parsedSpec.HTTP.Name)
+	subject := fmt.Sprintf("eddie failure: %s", specID)
 	body := fmt.Sprintf(
 		"spec failed: %s\r\nsource: %s\r\nreason: %v\r\n",
-		parsedSpec.HTTP.Name,
+		specID,
 		parsedSpec.SourcePath,
 		failureErr,
 	)
 	r.sendEmailToAll(subject, body)
+	slog.Debug("spec_failure_notification",
+		"name", specName,
+		"type", specType,
+		"subject", subject,
+	)
 }
 
 func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
-	if parsedSpec.HTTP.OnResolved != "" {
-		go runScript("on_resolved", parsedSpec.HTTP.Name, parsedSpec.HTTP.OnResolved)
+	onResolved := specOnResolved(parsedSpec)
+	specName := parsedSpec.Name()
+	specType := parsedSpec.Kind()
+	specID := parsedSpec.ID()
+	if onResolved != "" {
+		go runScript("on_resolved", specName, onResolved)
 	}
 
 	if r.mailService == nil || len(r.mailRecipients) == 0 {
 		return
 	}
-	subject := fmt.Sprintf("eddie recovery: %s", parsedSpec.HTTP.Name)
+	subject := fmt.Sprintf("eddie recovery: %s", specID)
 	body := fmt.Sprintf(
 		"spec recovered: %s\r\nsource: %s\r\n",
-		parsedSpec.HTTP.Name,
+		specID,
 		parsedSpec.SourcePath,
 	)
 	r.sendEmailToAll(subject, body)
+	slog.Debug("spec_recovery_notification",
+		"name", specName,
+		"type", specType,
+		"subject", subject,
+	)
 }
 
 func (r *Runner) sendEmailToAll(subject, body string) {

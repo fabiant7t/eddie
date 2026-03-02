@@ -125,6 +125,26 @@ http:
   url: https://api.example.com/robots.txt
 ```
 
+### TLS Example
+
+```yaml
+---
+version: 1
+tls:
+  name: api-cert
+  host: api.example.com
+  port: 443
+  server_name: api.example.com
+  verify: true
+  reject_selfsigned: true
+  min_version: "1.2"
+  timeout: 5s
+  cert_min_days_valid: 14
+  cycles:
+    failure: 2
+    success: 1
+```
+
 ### Field Reference
 
 - `version`  
@@ -159,6 +179,34 @@ http:
 - `http.on_failure`  
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `http.on_resolved`  
+  Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+- `tls.name` (required)  
+  Unique ID for the TLS check (`tls.name` must be unique across all parsed TLS specs).
+- `tls.disabled`  
+  Defaults to `false`; when `true`, the spec is parsed but not executed.
+- `tls.host` (required)  
+  Hostname to connect to.
+- `tls.port`  
+  TCP port. Defaults to `443`.
+- `tls.server_name`  
+  Optional TLS server name for SNI/verification. Defaults to `tls.host`.
+- `tls.verify`  
+  Controls certificate chain verification. Defaults to `true`.
+- `tls.reject_selfsigned`  
+  When `true`, rejects self-signed leaf certificates even if trusted. Defaults to `true`.
+- `tls.min_version`  
+  Optional minimum TLS version (`"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`).
+- `tls.timeout`  
+  Connection timeout. Defaults to `5s` when omitted or set to `0`/negative.
+- `tls.cert_min_days_valid`  
+  Optional minimum number of days the leaf certificate must remain valid.
+- `tls.cycles.failure`  
+  Consecutive failure threshold before entering failing state. Defaults to `1` when omitted/`<=0`.
+- `tls.cycles.success`  
+  Consecutive success threshold to recover from failing state. Defaults to `1` when omitted/`<=0`.
+- `tls.on_failure`  
+  Optional shell script executed asynchronously when the spec transitions to failing.
+- `tls.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
 
 ## Monitoring Semantics

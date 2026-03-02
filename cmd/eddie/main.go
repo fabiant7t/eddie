@@ -85,7 +85,8 @@ func main() {
 	for _, parsedSpec := range parsedSpecs {
 		if parsedSpec.IsActive() {
 			slog.Debug("spec_parsed",
-				"name", parsedSpec.HTTP.Name,
+				"name", parsedSpec.Name(),
+				"type", parsedSpec.Kind(),
 				"source", parsedSpec.SourcePath,
 			)
 		}
@@ -109,7 +110,8 @@ func main() {
 			Specs:       make([]apphttp.SpecStatus, 0, len(parsedSpecs)),
 		}
 		for _, parsedSpec := range parsedSpecs {
-			specState, hasState := stateStore.Get(parsedSpec.HTTP.Name)
+			specID := parsedSpec.ID()
+			specState, hasState := stateStore.Get(specID)
 			sourcePath := parsedSpec.SourcePath
 			if specBaseDir != "" {
 				if rel, err := filepath.Rel(specBaseDir, parsedSpec.SourcePath); err == nil {
@@ -119,7 +121,8 @@ func main() {
 				}
 			}
 			snapshot.Specs = append(snapshot.Specs, apphttp.SpecStatus{
-				Name:                 parsedSpec.HTTP.Name,
+				Name:                 parsedSpec.Name(),
+				Type:                 parsedSpec.Kind(),
 				SourcePath:           sourcePath,
 				Disabled:             !parsedSpec.IsActive(),
 				HasState:             hasState,

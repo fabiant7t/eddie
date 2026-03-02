@@ -60,7 +60,7 @@ func TestThresholdOrDefault(t *testing.T) {
 
 func TestCyclesDefaultsToOne(t *testing.T) {
 	parsedSpec := spec.Spec{
-		HTTP: spec.HTTPSpec{
+		HTTP: &spec.HTTPSpec{
 			Name: "s",
 			Cycles: spec.SpecCycles{
 				Failure: 0,
@@ -69,8 +69,9 @@ func TestCyclesDefaultsToOne(t *testing.T) {
 		},
 	}
 
-	failureThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Failure, 1)
-	successThreshold := thresholdOrDefault(parsedSpec.HTTP.Cycles.Success, 1)
+	cycles := specCycles(parsedSpec)
+	failureThreshold := thresholdOrDefault(cycles.Failure, 1)
+	successThreshold := thresholdOrDefault(cycles.Success, 1)
 
 	if failureThreshold != 1 {
 		t.Fatalf("failureThreshold = %d, want 1", failureThreshold)
