@@ -206,8 +206,13 @@ s3:
 
 ### Field Reference
 
+#### Common
+
 - `version`  
   Spec version field. Current examples use `1`.
+
+#### HTTP
+
 - `http.name` (required)  
   Unique ID for the check (`http.name` must be unique across all parsed HTTP specs).
 - `http.every_cycles`  
@@ -251,6 +256,9 @@ s3:
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `http.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+
+#### TLS
+
 - `tls.name` (required)  
   Unique ID for the TLS check (`tls.name` must be unique across all parsed TLS specs).
 - `tls.every_cycles`  
@@ -283,6 +291,9 @@ s3:
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `tls.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+
+#### Probe
+
 - `probe.name` (required)  
   Unique ID for the probe check (`probe.name` must be unique across all parsed probe specs).
 - `probe.every_cycles`  
@@ -327,6 +338,9 @@ s3:
   Optional shell script executed asynchronously when the spec transitions to failing.
 - `probe.on_resolved`  
   Optional shell script executed asynchronously when the spec transitions from failing to healthy.
+
+#### S3
+
 - `s3.name` (required)  
   Unique ID for the S3 check (`s3.name` must be unique across all parsed S3 specs).
 - `s3.disabled`  
