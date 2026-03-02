@@ -32,6 +32,7 @@ type HTTPSpec struct {
 	URL             string            `yaml:"url"`
 	Args            map[string]string `yaml:"args"`
 	Headers         map[string]string `yaml:"headers"`
+	MailReceivers   []string          `yaml:"mail_receivers"`
 	Timeout         time.Duration     `yaml:"timeout"`
 	Expect          HTTPExpect        `yaml:"expect"`
 	Cycles          SpecCycles        `yaml:"cycles"`
@@ -51,6 +52,7 @@ type TLSSpec struct {
 	MinVersion       string        `yaml:"min_version"`
 	Timeout          time.Duration `yaml:"timeout"`
 	CertMinDaysValid *int          `yaml:"cert_min_days_valid"`
+	MailReceivers    []string      `yaml:"mail_receivers"`
 	Cycles           SpecCycles    `yaml:"cycles"`
 	OnFailure        string        `yaml:"on_failure"`
 	OnResolved       string        `yaml:"on_resolved"`
@@ -266,6 +268,9 @@ func validateSpecNames(specs []Spec) error {
 			if name == "" {
 				return fmt.Errorf("spec in %q has empty http.name", sp.SourcePath)
 			}
+			if err := validateMailReceivers(sp.SourcePath, "http", sp.HTTP.MailReceivers); err != nil {
+				return err
+			}
 
 			identity := "http:" + name
 			if firstSource, ok := seen[identity]; ok {
@@ -280,6 +285,9 @@ func validateSpecNames(specs []Spec) error {
 			if sp.TLS.CertMinDaysValid != nil && *sp.TLS.CertMinDaysValid < 0 {
 				return fmt.Errorf("spec in %q has negative tls.cert_min_days_valid", sp.SourcePath)
 			}
+			if err := validateMailReceivers(sp.SourcePath, "tls", sp.TLS.MailReceivers); err != nil {
+				return err
+			}
 
 			identity := "tls:" + name
 			if firstSource, ok := seen[identity]; ok {
@@ -289,5 +297,14 @@ func validateSpecNames(specs []Spec) error {
 		}
 	}
 
+	return nil
+}
+
+func validateMailReceivers(sourcePath, kind string, receivers []string) error {
+	for idx, receiver := range receivers {
+		if strings.TrimSpace(receiver) == "" {
+			return fmt.Errorf("spec in %q has empty %s.mail_receivers[%d]", sourcePath, kind, idx)
+		}
+	}
 	return nil
 }

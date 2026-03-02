@@ -165,6 +165,8 @@ tls:
   Optional query parameters map. Keys overwrite same-name query params in `url`.
 - `http.headers`  
   Optional request headers map. `Host` is supported and mapped to the request host override.
+- `http.mail_receivers`  
+  Optional additional email recipients for this check. Global mail receivers still receive alerts.
 - `http.timeout`  
   Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
 - `http.expect.code`  
@@ -208,6 +210,8 @@ tls:
   Connection timeout. Defaults to `5s` when omitted or set to `0`/negative.
 - `tls.cert_min_days_valid`  
   Optional minimum number of days the leaf certificate must remain valid.
+- `tls.mail_receivers`  
+  Optional additional email recipients for this check. Global mail receivers still receive alerts.
 - `tls.cycles.failure`  
   Consecutive failure threshold before entering failing state. Defaults to `1` when omitted/`<=0`.
 - `tls.cycles.success`  

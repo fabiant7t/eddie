@@ -177,6 +177,26 @@ func TestParseTLSName(t *testing.T) {
 	}
 }
 
+func TestParseRejectsEmptyHTTPMailReceiver(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty-http-mail-receiver.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\nhttp:\n  name: foo\n  method: GET\n  url: http://example.com\n  mail_receivers:\n    - ops@example.com\n    - \"  \"\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
+func TestParseRejectsEmptyTLSMailReceiver(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty-tls-mail-receiver.yaml")
+	writeSpecFile(t, path, "---\nversion: 1\ntls:\n  name: foo\n  host: example.com\n  mail_receivers:\n    - alerts@example.com\n    - \"\"\n")
+
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatalf("Parse() error = nil, want error")
+	}
+}
+
 func TestParseRejectsDuplicateNames(t *testing.T) {
 	tempDir := t.TempDir()
 	prevWD, err := os.Getwd()

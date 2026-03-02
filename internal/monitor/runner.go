@@ -276,6 +276,17 @@ func specOnResolved(parsedSpec spec.Spec) string {
 	}
 }
 
+func specMailReceivers(parsedSpec spec.Spec) []string {
+	switch {
+	case parsedSpec.HTTP != nil:
+		return parsedSpec.HTTP.MailReceivers
+	case parsedSpec.TLS != nil:
+		return parsedSpec.TLS.MailReceivers
+	default:
+		return nil
+	}
+}
+
 func validateSpec(ctx context.Context, parsedSpec spec.Spec) error {
 	switch parsedSpec.Kind() {
 	case "http":
@@ -401,7 +412,8 @@ func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
 		go runScript("on_failure", specName, onFailure)
 	}
 
-	if r.mailService == nil || len(r.mailRecipients) == 0 {
+	recipients := mergedMailRecipients(r.mailRecipients, specMailReceivers(parsedSpec))
+	if r.mailService == nil || len(recipients) == 0 {
 		return
 	}
 	subject := fmt.Sprintf("eddie failure: %s", specID)
@@ -411,11 +423,12 @@ func (r *Runner) triggerFailureActions(parsedSpec spec.Spec, failureErr error) {
 		parsedSpec.SourcePath,
 		failureErr,
 	)
-	r.sendEmailToAll(subject, body)
+	r.sendEmailToRecipients(subject, body, recipients)
 	slog.Debug("spec_failure_notification",
 		"name", specName,
 		"type", specType,
 		"subject", subject,
+		"recipient_count", len(recipients),
 	)
 }
 
@@ -428,7 +441,8 @@ func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
 		go runScript("on_resolved", specName, onResolved)
 	}
 
-	if r.mailService == nil || len(r.mailRecipients) == 0 {
+	recipients := mergedMailRecipients(r.mailRecipients, specMailReceivers(parsedSpec))
+	if r.mailService == nil || len(recipients) == 0 {
 		return
 	}
 	subject := fmt.Sprintf("eddie recovery: %s", specID)
@@ -437,23 +451,45 @@ func (r *Runner) triggerRecoveryActions(parsedSpec spec.Spec) {
 		specID,
 		parsedSpec.SourcePath,
 	)
-	r.sendEmailToAll(subject, body)
+	r.sendEmailToRecipients(subject, body, recipients)
 	slog.Debug("spec_recovery_notification",
 		"name", specName,
 		"type", specType,
 		"subject", subject,
+		"recipient_count", len(recipients),
 	)
 }
 
-func (r *Runner) sendEmailToAll(subject, body string) {
+func (r *Runner) sendEmailToRecipients(subject, body string, recipients []string) {
 	sendCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	for _, recipient := range r.mailRecipients {
+	for _, recipient := range recipients {
 		if err := r.mailService.Send(sendCtx, recipient, subject, body); err != nil {
 			slog.Error("failed to send monitor email", "recipient", recipient, "error", err)
 		}
 	}
+}
+
+func mergedMailRecipients(globalRecipients, specRecipients []string) []string {
+	seen := make(map[string]struct{}, len(globalRecipients)+len(specRecipients))
+	merged := make([]string, 0, len(globalRecipients)+len(specRecipients))
+	appendUnique := func(values []string) {
+		for _, value := range values {
+			normalized := strings.TrimSpace(value)
+			if normalized == "" {
+				continue
+			}
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			merged = append(merged, normalized)
+		}
+	}
+	appendUnique(globalRecipients)
+	appendUnique(specRecipients)
+	return merged
 }
 
 func runScript(action, specName, script string) {

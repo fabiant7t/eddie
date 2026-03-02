@@ -160,3 +160,19 @@ func TestHasStateChanged(t *testing.T) {
 		t.Fatalf("start timestamp-only change should be ignored")
 	}
 }
+
+func TestMergedMailRecipients(t *testing.T) {
+	got := mergedMailRecipients(
+		[]string{"ops@example.com", "security@example.com"},
+		[]string{"team@example.com", " ops@example.com ", "", "security@example.com"},
+	)
+	want := []string{"ops@example.com", "security@example.com", "team@example.com"}
+	if len(got) != len(want) {
+		t.Fatalf("len(mergedMailRecipients) = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for idx := range want {
+		if got[idx] != want[idx] {
+			t.Fatalf("mergedMailRecipients[%d] = %q, want %q", idx, got[idx], want[idx])
+		}
+	}
+}
