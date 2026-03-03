@@ -10,6 +10,10 @@
   - `/events` returning SSE snapshots for live status updates (basic-auth protected when configured)
   - `/healthz` returning `application/health+json` including status and app version
 
+## Lightning Talk
+
+[![Eddie lightning talk on YouTube](https://img.youtube.com/vi/_59JBvEkg-8/hqdefault.jpg)](https://www.youtube.com/watch?v=_59JBvEkg-8)
+
 ## Build and Run
 
 ```bash
