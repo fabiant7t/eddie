@@ -33,6 +33,11 @@ Configuration is read with precedence: `CLI > ENV > defaults`.
   Go duration string (for example `60s`, `1m`).  
   Default: `60s`.
 
+- `EDDIE_STARTUP_JITTER` / `--startup-jitter`  
+  Max deterministic jitter added to each spec on the first monitoring cycle (for example `15s`).  
+  Use this to spread startup load across specs. `0s` disables jitter.  
+  Default: `0s`.
+
 - `EDDIE_SHUTDOWN_TIMEOUT` / `--shutdown-timeout`  
   Go duration string (for example `5s`, `1m`).  
   Default: `5s`.
@@ -385,6 +390,8 @@ s3:
 ## Monitoring Semantics
 
 - Every cycle, active specs are validated concurrently (goroutines + waitgroup).
+- On cycle 1, each active spec can be delayed by a deterministic per-spec startup jitter
+  (`EDDIE_STARTUP_JITTER` / `--startup-jitter`) to avoid startup bursts.
 - Spec state is tracked in a state store (current implementation: in-memory).
 - Failure transition:
   - occurs when `cycles.failure` consecutive checks fail.

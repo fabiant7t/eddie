@@ -11,6 +11,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-default")
 	t.Setenv(envSpecPath, "")
 	t.Setenv(envCycleInterval, "")
+	t.Setenv(envStartupJitter, "")
 	t.Setenv(envShutdownTimeout, "")
 	t.Setenv(envLogLevel, "")
 	t.Setenv(envHTTPAddress, "")
@@ -32,6 +33,9 @@ func TestLoadDefaults(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.StartupJitter != 0 {
+		t.Fatalf("StartupJitter = %v, want %v", cfg.StartupJitter, 0*time.Second)
 	}
 	if cfg.ShutdownTimeout != 5*time.Second {
 		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 5*time.Second)
@@ -61,6 +65,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-env")
 	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envStartupJitter, "15s")
 	t.Setenv(envShutdownTimeout, "8s")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -82,6 +87,9 @@ func TestLoadFromEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.StartupJitter != 15*time.Second {
+		t.Fatalf("StartupJitter = %v, want %v", cfg.StartupJitter, 15*time.Second)
 	}
 	if cfg.ShutdownTimeout != 8*time.Second {
 		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 8*time.Second)
@@ -132,6 +140,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/tmp/eddie-xdg-cli")
 	t.Setenv(envSpecPath, "/etc/eddie/config.d")
 	t.Setenv(envCycleInterval, "1m")
+	t.Setenv(envStartupJitter, "10s")
 	t.Setenv(envShutdownTimeout, "8s")
 	t.Setenv(envLogLevel, "debug")
 	t.Setenv(envHTTPAddress, "127.0.0.1")
@@ -149,6 +158,7 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 	cfg, err := Load([]string{
 		"--spec-path=/opt/eddie/config.d",
 		"--cycle-interval=60s",
+		"--startup-jitter=25s",
 		"--shutdown-timeout=12s",
 		"--log-level=warn",
 		"--http-address=0.0.0.0",
@@ -170,6 +180,9 @@ func TestLoadCLIOverridesEnv(t *testing.T) {
 
 	if cfg.CycleInterval != 60*time.Second {
 		t.Fatalf("CycleInterval = %v, want %v", cfg.CycleInterval, 60*time.Second)
+	}
+	if cfg.StartupJitter != 25*time.Second {
+		t.Fatalf("StartupJitter = %v, want %v", cfg.StartupJitter, 25*time.Second)
 	}
 	if cfg.ShutdownTimeout != 12*time.Second {
 		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 12*time.Second)
@@ -231,6 +244,13 @@ func TestLoadFormatEquivalence(t *testing.T) {
 
 	if cfgA.CycleInterval != cfgB.CycleInterval {
 		t.Fatalf("60s parsed as %v, 1m parsed as %v; want equal", cfgA.CycleInterval, cfgB.CycleInterval)
+	}
+}
+
+func TestLoadRejectsNegativeStartupJitter(t *testing.T) {
+	_, err := Load([]string{"--startup-jitter=-1s"})
+	if err == nil {
+		t.Fatalf("Load() error = nil, want error")
 	}
 }
 

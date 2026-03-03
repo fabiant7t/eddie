@@ -14,6 +14,8 @@ import (
 const (
 	defaultCycleInterval = 60 * time.Second
 	envCycleInterval     = "EDDIE_CYCLE_INTERVAL"
+	defaultStartupJitter = 0 * time.Second
+	envStartupJitter     = "EDDIE_STARTUP_JITTER"
 	defaultShutdownTimeout = 5 * time.Second
 	envShutdownTimeout     = "EDDIE_SHUTDOWN_TIMEOUT"
 	defaultLogLevel      = "INFO"
@@ -41,6 +43,7 @@ const (
 type Configuration struct {
 	SpecPath        string
 	CycleInterval   time.Duration
+	StartupJitter   time.Duration
 	ShutdownTimeout time.Duration
 	LogLevel        string
 	HTTPServer      HTTPServerConfiguration
@@ -77,6 +80,7 @@ func Load(args []string) (Configuration, error) {
 	cfg := Configuration{
 		SpecPath:        defaultSpecPath,
 		CycleInterval:   defaultCycleInterval,
+		StartupJitter:   defaultStartupJitter,
 		ShutdownTimeout: defaultShutdownTimeout,
 		LogLevel:        defaultLogLevel,
 		HTTPServer: HTTPServerConfiguration{
@@ -97,6 +101,13 @@ func Load(args []string) (Configuration, error) {
 			return Configuration{}, fmt.Errorf("invalid %s: %w", envCycleInterval, err)
 		}
 		cfg.CycleInterval = d
+	}
+	if raw := os.Getenv(envStartupJitter); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return Configuration{}, fmt.Errorf("invalid %s: %w", envStartupJitter, err)
+		}
+		cfg.StartupJitter = d
 	}
 	if raw := os.Getenv(envShutdownTimeout); raw != "" {
 		d, err := time.ParseDuration(raw)
@@ -161,6 +172,7 @@ func Load(args []string) (Configuration, error) {
 	fs.SetOutput(os.Stderr)
 	fs.StringVar(&cfg.SpecPath, "spec-path", cfg.SpecPath, "spec path value")
 	fs.DurationVar(&cfg.CycleInterval, "cycle-interval", cfg.CycleInterval, "cycle interval (e.g. 60s, 1m)")
+	fs.DurationVar(&cfg.StartupJitter, "startup-jitter", cfg.StartupJitter, "startup jitter max delay for first-cycle checks (e.g. 10s)")
 	fs.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", cfg.ShutdownTimeout, "shutdown timeout (e.g. 5s)")
 	fs.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level (DEBUG, INFO, WARN, ERROR)")
 	fs.StringVar(&cfg.HTTPServer.Address, "http-address", cfg.HTTPServer.Address, "http server listen address")
@@ -176,6 +188,9 @@ func Load(args []string) (Configuration, error) {
 	fs.BoolVar(&cfg.Mailserver.NoTLS, "mail-no-tls", cfg.Mailserver.NoTLS, "disable TLS for mail server")
 	if err := fs.Parse(args); err != nil {
 		return Configuration{}, err
+	}
+	if cfg.StartupJitter < 0 {
+		return Configuration{}, fmt.Errorf("invalid %s: must be >= 0", envStartupJitter)
 	}
 	logLevel, err := normalizeLogLevel(cfg.LogLevel)
 	if err != nil {

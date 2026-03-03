@@ -56,6 +56,7 @@ func main() {
 	slog.Info("config",
 		"spec_path", cfg.SpecPath,
 		"cycle_interval", cfg.CycleInterval.String(),
+		"startup_jitter", cfg.StartupJitter.String(),
 		"shutdown_timeout", cfg.ShutdownTimeout.String(),
 		"log_level", cfg.LogLevel,
 	)
@@ -93,7 +94,14 @@ func main() {
 	}
 
 	stateStore := state.NewInMemoryStore()
-	runner := monitor.NewRunner(parsedSpecs, cfg.CycleInterval, stateStore, mailService, cfg.Mailserver.Receivers)
+	runner := monitor.NewRunner(
+		parsedSpecs,
+		cfg.CycleInterval,
+		cfg.StartupJitter,
+		stateStore,
+		mailService,
+		cfg.Mailserver.Receivers,
+	)
 	go runner.Run(ctx)
 
 	specBaseDir, err := resolveSpecBaseDir(cfg.SpecPath)

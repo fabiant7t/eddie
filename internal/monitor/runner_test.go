@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -192,5 +193,41 @@ func TestShouldRunSpecInCycle(t *testing.T) {
 	}
 	if !shouldRunSpecInCycle(everyThree, 3) {
 		t.Fatalf("every_cycles=3 should run on cycle 3")
+	}
+}
+
+func TestDeterministicSpecJitter(t *testing.T) {
+	maxJitter := 5 * time.Second
+	specID := "http:api-health"
+
+	first := deterministicSpecJitter(specID, maxJitter)
+	second := deterministicSpecJitter(specID, maxJitter)
+	if first != second {
+		t.Fatalf("deterministicSpecJitter should be stable: first=%v second=%v", first, second)
+	}
+	if first < 0 || first >= maxJitter {
+		t.Fatalf("deterministicSpecJitter out of range: got %v max %v", first, maxJitter)
+	}
+}
+
+func TestSpecStartDelayOnlyOnFirstCycle(t *testing.T) {
+	runner := &Runner{startupJitter: 3 * time.Second}
+	parsedSpec := spec.Spec{HTTP: &spec.HTTPSpec{Name: "api-health"}}
+
+	firstCycleDelay := runner.specStartDelay(parsedSpec, 1)
+	if firstCycleDelay < 0 || firstCycleDelay >= runner.startupJitter {
+		t.Fatalf("specStartDelay(first cycle) out of range: got %v", firstCycleDelay)
+	}
+	if got := runner.specStartDelay(parsedSpec, 2); got != 0 {
+		t.Fatalf("specStartDelay(non-first cycle) = %v, want 0", got)
+	}
+}
+
+func TestSleepWithContextReturnsFalseWhenCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if ok := sleepWithContext(ctx, time.Second); ok {
+		t.Fatalf("sleepWithContext canceled context = true, want false")
 	}
 }

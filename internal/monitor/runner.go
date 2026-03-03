@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"log/slog"
 	nethttp "net/http"
@@ -31,6 +32,7 @@ const (
 type Runner struct {
 	specs          []spec.Spec
 	cycleInterval  time.Duration
+	startupJitter  time.Duration
 	stateStore     state.Store
 	mailService    *mail.Service
 	mailRecipients []string
@@ -41,6 +43,7 @@ type Runner struct {
 func NewRunner(
 	specs []spec.Spec,
 	cycleInterval time.Duration,
+	startupJitter time.Duration,
 	stateStore state.Store,
 	mailService *mail.Service,
 	mailRecipients []string,
@@ -48,6 +51,7 @@ func NewRunner(
 	return &Runner{
 		specs:          specs,
 		cycleInterval:  cycleInterval,
+		startupJitter:  startupJitter,
 		stateStore:     stateStore,
 		mailService:    mailService,
 		mailRecipients: mailRecipients,
@@ -86,6 +90,10 @@ func (r *Runner) runCycle(ctx context.Context) {
 
 		parsedSpec := parsedSpec
 		wg.Go(func() {
+			delay := r.specStartDelay(parsedSpec, currentCycle)
+			if !sleepWithContext(ctx, delay) {
+				return
+			}
 			cycleStartedAt := time.Now()
 			r.markCycleStarted(parsedSpec, cycleStartedAt)
 			checkErr := validateSpec(ctx, parsedSpec)
@@ -93,6 +101,36 @@ func (r *Runner) runCycle(ctx context.Context) {
 		})
 	}
 	wg.Wait()
+}
+
+func (r *Runner) specStartDelay(parsedSpec spec.Spec, cycleNumber uint64) time.Duration {
+	if r.startupJitter <= 0 || cycleNumber != 1 {
+		return 0
+	}
+	return deterministicSpecJitter(parsedSpec.ID(), r.startupJitter)
+}
+
+func deterministicSpecJitter(specID string, maxJitter time.Duration) time.Duration {
+	if maxJitter <= 0 {
+		return 0
+	}
+	hasher := fnv.New64a()
+	_, _ = hasher.Write([]byte(specID))
+	return time.Duration(hasher.Sum64() % uint64(maxJitter))
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return true
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func shouldRunSpecInCycle(parsedSpec spec.Spec, cycleNumber uint64) bool {
