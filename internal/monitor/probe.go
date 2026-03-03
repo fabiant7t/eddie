@@ -63,7 +63,7 @@ func validateProbeSpec(ctx context.Context, parsedSpec spec.Spec) error {
 func executeProbeRequest(ctx context.Context, request spec.ProbeRequest) (probeRequestResult, error) {
 	reqTimeout := request.Timeout
 	if reqTimeout <= 0 {
-		reqTimeout = 5 * time.Second
+		reqTimeout = 15 * time.Second
 	}
 	reqCtx, cancel := context.WithTimeout(ctx, reqTimeout)
 	defer cancel()

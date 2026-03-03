@@ -239,7 +239,7 @@ s3:
 - `http.mail_receivers`  
   Optional additional email recipients for this check. Global mail receivers still receive alerts.
 - `http.timeout`  
-  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+  Request timeout duration. Defaults to `15s` when omitted or set to `0`/negative.
 - `http.expect.code`  
   Optional expected HTTP status code.
 - `http.expect.code_any_of`  
@@ -283,7 +283,7 @@ s3:
 - `tls.min_version`  
   Optional minimum TLS version (`"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`).
 - `tls.timeout`  
-  Connection timeout. Defaults to `5s` when omitted or set to `0`/negative.
+  Connection timeout. Defaults to `15s` when omitted or set to `0`/negative.
 - `tls.cert_min_days_valid`  
   Optional minimum number of days the leaf certificate must remain valid.
 - `tls.mail_receivers`  
@@ -316,7 +316,7 @@ s3:
 - `probe.requests[*].insecure_skip_verify`  
   When `true`, skips TLS certificate verification for HTTPS requests. Defaults to `false`.
 - `probe.requests[*].timeout`  
-  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+  Request timeout duration. Defaults to `15s` when omitted or set to `0`/negative.
 - `probe.extracts` (required)  
   Defines extracted values from request results.
 - `probe.extracts[*].source.type`  
@@ -373,7 +373,7 @@ s3:
 - `s3.list.max_keys`  
   Optional limit for listed keys.
 - `s3.list.timeout`  
-  Request timeout duration. Defaults to `5s` when omitted or set to `0`/negative.
+  Request timeout duration. Defaults to `15s` when omitted or set to `0`/negative.
 - `s3.list.expect.count_gt` / `count_gte` / `count_eq`  
   Exactly one count assertion must be configured.
 - `s3.mail_receivers`  

@@ -24,7 +24,7 @@ func validateS3Spec(ctx context.Context, parsedSpec spec.Spec) error {
 
 	listTimeout := s3Spec.List.Timeout
 	if listTimeout <= 0 {
-		listTimeout = 5 * time.Second
+		listTimeout = 15 * time.Second
 	}
 	listCtx, cancel := context.WithTimeout(ctx, listTimeout)
 	defer cancel()

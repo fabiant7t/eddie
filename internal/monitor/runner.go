@@ -389,7 +389,7 @@ func validateSpec(ctx context.Context, parsedSpec spec.Spec) error {
 func validateHTTPSpec(ctx context.Context, parsedSpec spec.Spec) error {
 	reqTimeout := parsedSpec.HTTP.Timeout
 	if reqTimeout <= 0 {
-		reqTimeout = 5 * time.Second
+		reqTimeout = 15 * time.Second
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, reqTimeout)

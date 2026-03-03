@@ -32,7 +32,7 @@ func validateTLSSpec(ctx context.Context, parsedSpec spec.Spec) error {
 
 	timeout := tlsSpec.Timeout
 	if timeout <= 0 {
-		timeout = 5 * time.Second
+		timeout = 15 * time.Second
 	}
 
 	verify := true
