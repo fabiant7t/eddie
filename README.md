@@ -409,6 +409,8 @@ s3:
 - `http.name` must be unique across all parsed HTTP specs.
 - `probe.name` is required and must not be empty.
 - `probe.name` must be unique across all parsed probe specs.
+- `tls.name` is required and must not be empty.
+- `tls.name` must be unique across all parsed TLS specs.
 - `s3.name` is required and must not be empty.
 - `s3.name` must be unique across all parsed s3 specs.
 - Uniqueness is scoped by check type (for future types): `http.name` and `foo.name` may share the same value.
